@@ -78,7 +78,7 @@ It's a sandbox, not the game. It has no meta, saves, eggs, mounts, parties or me
 | Stamp tool, from a script or a Studio model: multi-cell parts, inherited kinds, stages | `tools/stamp_blueprint.luau`, `tools/lib/ModelSource.luau`, `docs/authoring.md` | tested; not yet tried on a real Studio export |
 | Content drafts: hearthlings and eggs, sled beasts, achievements, tasks, lore, news, The Warm Welcome | `src/shared/content/` | structure tested, numbers placeholders |
 | SiteList and KindLooks: the sites in order with their payouts, and each block kind's look | `src/shared/SiteList.luau`, `src/shared/KindLooks.luau` | tested, payouts provisional |
-| Blueprints: TestHut (508), WoodcuttersLodge (5,928), IceBridge (7,320), Watchtower (8,754), GreatHall (10,746) | `tools/blueprints/` | validated, sizes provisional |
+| Blueprints: TestHut (508), WoodcuttersLodge (5,928), IceBridge (7,459), Watchtower (9,617), GreatHall (12,333) | `tools/blueprints/` | validated, sizes provisional |
 
 ### How the prototype is tested
 
@@ -98,7 +98,9 @@ The tests boot the place, lay blocks by holding the mouse, buy a skill, let a Ha
 | Solo, Nightmare, 20 seeds | 39.9 min (36.0 to 45.4), all finished |
 | 2, 3, 4 players, Normal | 0.54, 0.36, 0.29 of the solo time (Unharvester: 0.51, 0.36, 0.27) |
 
-The later sites, solo against Normal over 3 seeds: IceBridge 32.2, Watchtower 36.7 and GreatHall 39.5 minutes, all finished. Their sizes are placeholders until the renderer's stress test sets each site's ceiling.
+The later sites, solo against Normal over 3 seeds: IceBridge 36.0, Watchtower 40.8 and GreatHall 43.9 minutes, all finished. Their sizes are placeholders until the renderer's stress test sets each site's ceiling.
+
+The Ice Bridge crosses on five graded ice arches between twin-tower stone gates, with lanterns along its rope rails. The Watchtower stands in a walled yard; a stair winds round its outside, rising with the walls, up to a gallery, a glowing lantern room and a flared roof. The Great Hall has buttressed bays of tall windows, a gabled porch, dormers, a ridge louvre and a gable chimney. Roofs and rails wait for the work beneath them: beams, corners, a closed deck. Every step is a full block, so climbing them takes a jump.
 
 Co-op reaches those ratios through `partyShare`: every teammate also earns the base pay of each first placement, so a party climbs the tree as fast per share built as a solo player. Without it, 4 players took 0.51 of the solo time, because each player's tree only grew from their own blocks. PartyPressure isn't modelled.
 
@@ -148,7 +150,7 @@ Co-op reaches those ratios through `partyShare`: every teammate also earns the b
 | `DAILY_REWARD` | The Warm Welcome |
 | `ABILITY` | Sled Train |
 | `POWER_TOOL` | Forge Hammer |
-| `SITES` | Woodcutter's Lodge (timber, stone, thatch), Ice Bridge (ice, rope rail), Watchtower (stone, timber, lantern), Great Hall (stone, timber, slate, glass) |
+| `SITES` | Woodcutter's Lodge (timber, stone, thatch), Ice Bridge (ice, rope rail, stone, lantern), Watchtower (stone, timber, lantern), Great Hall (stone, timber, slate, glass) |
 | `BLOCK_STUDS` | 3 |
 | `FIRST_SITE_BLOCKS` | 6,000 |
 | `FIRST_RUN_MINUTES` | 30 |
