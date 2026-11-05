@@ -8,7 +8,7 @@ This repo was started **before** the Unharvester fork (the formula's Phase 0), i
 
 ## Play the prototype
 
-The prototype runs the first site, the Woodcutter's Lodge (5,928 blocks), in a plain place. It's there to judge the click (the Phase 2 gate) and the shape of a run.
+The prototype runs the four sites in a plain place, starting with the Woodcutter's Lodge (5,928 blocks), and moves to the next when one is finished. It's there to judge the click (the Phase 2 gate) and the shape of a run.
 
 1. Install the tools with `aftman install` (Rojo, Lune, StyLua, selene).
 2. Build a place and open it in Studio, then press Play:
@@ -33,11 +33,12 @@ What it does:
 - **Ghosts:** the finished build always shows as a faint silhouette. READY slots near you pulse as ghosts.
 - **Collisions:** a block that lands where you stand moves you onto it, and a character stuck for 2 seconds is moved clear.
 - **The boss:** the Rime rises at 15% built. Walk up to it to shoo it away, and break its frost marks (and, on Hard, its ice chains) for a bounty.
-- **The world:** the blizzard thins and night falls as the hold rises. When it's finished, a ten-second timelapse raises the build again in the order it was placed, and a fresh site starts 30 seconds later.
+- **The world:** the blizzard thins and night falls as the hold rises. When it's finished, a ten-second timelapse raises the build again in the order it was placed, and 30 seconds later the next site starts, with a bare tree and an empty purse.
 
 Workspace attributes change it while it runs:
 
 - `Difficulty`: `None`, `Normal`, `Hard` or `Nightmare`. It's read when a site starts.
+- `Site`: a site's id from `SiteList` (`WoodcuttersLodge`, `IceBridge`, `Watchtower`, `GreatHall`) to start there.
 - `Cooldown`, `Grasp`, `Batch`, `SetTime`, `ChainChance`, `ChainRadius`, `PerfectChance`, `CrewWidth`, `CrewCooldown`: each overrides that stat for everyone.
 
 It's a sandbox, not the game. It has no meta, saves, pets, mounts, parties or menus. The cooldown shows as a bar rather than a ring, and its tick is a built-in Studio sound. At the fork, the Unharvester-based `BuildRenderer`, `PlaceController` and `SiteService` replace `src/client` and `src/server`, calling the same shared modules.
@@ -66,7 +67,8 @@ It's a sandbox, not the game. It has no meta, saves, pets, mounts, parties or me
 | Prototype server and client | `src/server`, `src/client` | run under a Roblox stand-in in tests |
 | Run sim with bots | `tools/sim/` | tested |
 | Stamp tool, from a script or a Studio model | `tools/stamp_blueprint.luau`, `tools/lib/ModelSource.luau` | tested |
-| Blueprints: TestHut (508), WoodcuttersLodge (5,928) | `tools/blueprints/` | validated |
+| SiteList and KindLooks: the sites in order, and each block kind's look | `src/shared/SiteList.luau`, `src/shared/KindLooks.luau` | tested |
+| Blueprints: TestHut (508), WoodcuttersLodge (5,928), IceBridge (7,320), Watchtower (8,754), GreatHall (10,746) | `tools/blueprints/` | validated, sizes provisional |
 
 ### How the prototype is tested
 
@@ -85,6 +87,8 @@ The tests boot the place, lay blocks by holding the mouse, buy a skill, let a Ha
 | Solo, Hard, 20 seeds | 37.0 min (32.7 to 47.4), all finished |
 | Solo, Nightmare, 20 seeds | 39.9 min (36.0 to 45.4), all finished |
 | 2, 3, 4 players, Normal | 0.54, 0.36, 0.29 of the solo time (Unharvester: 0.51, 0.36, 0.27) |
+
+The later sites, solo against Normal over 3 seeds: IceBridge 32.2, Watchtower 36.7 and GreatHall 39.5 minutes, all finished. Their sizes are placeholders until the renderer's stress test sets each site's ceiling.
 
 Co-op reaches those ratios through `partyShare`: every teammate also earns the base pay of each first placement, so a party climbs the tree as fast per share built as a solo player. Without it, 4 players took 0.51 of the solo time, because each player's tree only grew from their own blocks. PartyPressure isn't modelled.
 

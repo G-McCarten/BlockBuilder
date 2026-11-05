@@ -23,6 +23,7 @@ require("./Sim.spec")
 require("./Prediction.spec")
 require("./WorldArc.spec")
 require("./Timelapse.spec")
+require("./SiteList.spec")
 require("./Prototype.spec")
 
 local failed = Test.summary()

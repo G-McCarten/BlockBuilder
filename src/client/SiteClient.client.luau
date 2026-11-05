@@ -1,6 +1,8 @@
 --[[
 	SiteClient: draws the graybox site and handles the click, to playtest the
-	verb before the Unharvester fork. SiteServer runs the site.
+	verb before the Unharvester fork. SiteServer runs the site, and names the
+	one in play in the workspace's CurrentSite attribute; the client loads
+	that site's blueprint, and switches when the server moves on.
 
 	The finished build always shows as one faint silhouette, made of the
 	boxes CollisionBoxes merges the whole blueprint into. A finished site
@@ -31,6 +33,7 @@ local player = Players.LocalPlayer
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Access = require(Shared:WaitForChild("Access"))
 local Blueprint = require(Shared:WaitForChild("Blueprint"))
+local KindLooks = require(Shared:WaitForChild("KindLooks"))
 local BossConfig = require(Shared:WaitForChild("BossConfig"))
 local BuildSite = require(Shared:WaitForChild("BuildSite"))
 local CollisionBoxes = require(Shared:WaitForChild("CollisionBoxes"))
@@ -38,6 +41,7 @@ local Prediction = require(Shared:WaitForChild("Prediction"))
 local SiteCodec = require(Shared:WaitForChild("SiteCodec"))
 local SiteConfig = require(Shared:WaitForChild("SiteConfig"))
 local SiteIndex = require(Shared:WaitForChild("SiteIndex"))
+local SiteList = require(Shared:WaitForChild("SiteList"))
 local SiteRay = require(Shared:WaitForChild("SiteRay"))
 local SkillTuning = require(Shared:WaitForChild("SkillTuning"))
 local Theme = require(Shared:WaitForChild("Theme"))
@@ -62,17 +66,31 @@ local STUDS = SiteConfig.BLOCK_STUDS
 local HEADROOM = SiteConfig.HEADROOM_CELLS
 local State = BuildSite.State
 
-local bp = Blueprint.load(require(Shared:WaitForChild("Blueprints"):WaitForChild("WoodcuttersLodge")))
+-- The site in play, which the server names in the workspace's CurrentSite
+-- attribute. A snapshot for another site switches to it.
+local blueprints = Shared:WaitForChild("Blueprints")
+local siteId = workspace:GetAttribute("CurrentSite") or SiteList[1].id
+local bp = Blueprint.load(require(blueprints:WaitForChild(siteId)))
 local index = SiteIndex.build(bp, SiteConfig.CHUNK_CELLS)
 local found = {}
 
+local function siteName(id: string): string
+	for _, entry in SiteList do
+		if entry.id == id then
+			return entry.name
+		end
+	end
+	return id
+end
+
 -- Looks ---------------------------------------------------------------------
 
-local KIND_LOOK = {
-	stone = { Color3.fromRGB(150, 152, 160), Enum.Material.Slate },
-	timber = { Color3.fromRGB(140, 98, 62), Enum.Material.WoodPlanks },
-	thatch = { Color3.fromRGB(198, 172, 108), Enum.Material.Fabric },
-}
+-- Each kind's colour and material, from KindLooks.
+local KIND_LOOK = {}
+for kind, look in KindLooks do
+	KIND_LOOK[kind] =
+		{ Color3.fromRGB(look.color[1], look.color[2], look.color[3]), (Enum.Material :: any)[look.material] }
+end
 local FALLBACK_LOOK = { Color3.fromRGB(180, 180, 190), Enum.Material.SmoothPlastic }
 local GHOST_COLOR = Color3.fromRGB(170, 215, 255)
 local GHOST_RADIUS = 14
@@ -96,7 +114,12 @@ end
 
 local TIMELAPSE_SECONDS = 10
 
-do
+local silhouette: Folder? = nil
+
+local function buildSilhouette()
+	if silhouette then
+		silhouette:Destroy()
+	end
 	local folder = Instance.new("Folder")
 	folder.Name = "SiteSilhouette"
 	local everyBlock = { progress = table.create(bp.count, 1), rate = table.create(bp.count, 0) }
@@ -122,7 +145,9 @@ do
 		end
 	end
 	folder.Parent = workspace
+	silhouette = folder
 end
+buildSilhouette()
 
 -- Blocks -------------------------------------------------------------------
 
@@ -644,8 +669,11 @@ aurora.CanTouch = false
 aurora.CastShadow = false
 aurora.Material = Enum.Material.Neon
 aurora.Size = Vector3.new(600, 30, 2)
-aurora.CFrame = CFrame.new(ORIGIN + Vector3.new(bp.sizeX * STUDS / 2, 260, bp.sizeZ * STUDS + 220))
-	* CFrame.Angles(math.rad(-20), 0, 0)
+local function placeAurora()
+	aurora.CFrame = CFrame.new(ORIGIN + Vector3.new(bp.sizeX * STUDS / 2, 260, bp.sizeZ * STUDS + 220))
+		* CFrame.Angles(math.rad(-20), 0, 0)
+end
+placeAurora()
 aurora.Transparency = 1
 aurora.Parent = workspace
 
@@ -812,6 +840,17 @@ StateRemote.OnClientEvent:Connect(function(kind, buf, answers)
 		timelapse = { order = Timelapse.decode(buf), started = os.clock(), shown = 0 }
 		return
 	elseif kind == "snapshot" then
+		local current = workspace:GetAttribute("CurrentSite")
+		if current and current ~= siteId then
+			-- A new site: its blueprint, index, silhouette and sky.
+			resetMirror()
+			siteId = current
+			bp = Blueprint.load(require(blueprints:WaitForChild(siteId)))
+			index = SiteIndex.build(bp, SiteConfig.CHUNK_CELLS)
+			buildSilhouette()
+			placeAurora()
+			say(`Next: the {siteName(siteId)}.`)
+		end
 		resetMirror()
 		SiteCodec.decode(buf, function(s, p, r)
 			BuildSite.setRemote(mirror, s, p, r)
@@ -916,8 +955,12 @@ RunService.RenderStepped:Connect(function(dt)
 
 	local cooldown = player:GetAttribute("Cooldown") or 0.35
 	cooldownFill.Size = UDim2.fromScale(math.clamp((now - lastClick) / cooldown, 0, 1), 1)
-	builtLabel.Text =
-		string.format("%s %d%%", capitalise(Theme.PlaceVerb.past), math.floor(100 * mirror.placedCount / mirror.count))
+	builtLabel.Text = string.format(
+		"%s: %s %d%%",
+		siteName(siteId),
+		Theme.PlaceVerb.past,
+		math.floor(100 * mirror.placedCount / mirror.count)
+	)
 	if now > announceUntil then
 		announce.Text = ""
 	end

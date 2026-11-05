@@ -76,10 +76,25 @@ Test.case("the server and client boot without errors and build their HUD", funct
 	Test.equal(#world.errors, 0, errorsOf(world))
 	Test.check(world.realGame:GetService("ReplicatedStorage"):FindFirstChild("SiteRemotes"), "remotes")
 	Test.check(world.realGame:GetService("Workspace"):FindFirstChild("SiteProps"), "hoist pads")
-	Test.equal(hudText(world, player, "Built"), "Laid 0%", "the HUD shows the share laid")
+	Test.equal(hudText(world, player, "Built"), "Woodcutter's Lodge: laid 0%", "the HUD shows the site and share laid")
 	Test.equal(embers(world, player), 0, "an empty purse")
 	local silhouette = world.realGame:GetService("Workspace"):FindFirstChild("SiteSilhouette")
 	Test.check(silhouette and #silhouette:GetChildren() > 100, "the finished build's silhouette shows")
+end)
+
+Test.case("the Site attribute starts any site, and its blocks lay", function()
+	local world, player = boot({ Site = "GreatHall", Batch = 30, Cooldown = 0.1 })
+	Test.equal(hudText(world, player, "Built"), "Great Hall: laid 0%", "the hall")
+	hold(world)
+	for frame = 1, 60 do
+		local x, z = 3 + (frame * 7) % 60, 7 + (frame * 11) % 27
+		world.aimRay = Ray.new(ORIGIN + Vector3.new(x + 0.5, 40, z + 0.5) * STUDS, Vector3.new(0, -1, 0))
+		aimAt(world, player, x, 0, z)
+		world:step(1 / 60)
+	end
+	release(world)
+	Test.check(blockCount(world) > 100, `laid {blockCount(world)} in the hall`)
+	Test.equal(#world.errors, 0, errorsOf(world))
 end)
 
 Test.case("holding the mouse over the plinth lays blocks, shown at once and paid", function()
@@ -184,7 +199,7 @@ Test.case("a finished site is announced, then a fresh one replaces it", function
 		local top = ORIGIN + Vector3.new(x + 0.5, 40, z + 0.5) * STUDS
 		world.aimRay = Ray.new(top, Vector3.new(0, -1, 0))
 		world:step(1 / 60)
-		if hudText(world, player, "Built") == "Laid 100%" then
+		if string.find(hudText(world, player, "Built"), "laid 100%", 1, true) then
 			finished = true
 			break
 		end
@@ -211,6 +226,8 @@ Test.case("a finished site is announced, then a fresh one replaces it", function
 	end
 	Test.equal(blockCount(world), 0, "a fresh site after the wait")
 	Test.equal(embers(world, player), 0, "with an empty purse")
+	Test.equal(world.realGame:GetService("Workspace"):GetAttribute("CurrentSite"), "IceBridge", "the next site")
+	Test.equal(hudText(world, player, "Built"), "Ice Bridge: laid 0%", "the client loaded it")
 	Test.equal(#world.errors, 0, errorsOf(world))
 end)
 

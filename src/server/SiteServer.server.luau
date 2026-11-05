@@ -3,13 +3,15 @@
 	before the Unharvester fork. Open a new Baseplate place in Studio, serve
 	this repo with Rojo, and press Play. SiteClient draws it.
 
-	It builds the WoodcuttersLodge beside the spawn and runs it with
-	SiteSession. Clicks arrive on SiteRemotes.Place. Each tick, the delta goes
+	It builds a site from SiteList beside the spawn and runs it with
+	SiteSession: the one named by the workspace's Site attribute, else the
+	first. The site in play is in the workspace's CurrentSite attribute.
+	Clicks arrive on SiteRemotes.Place. Each tick, the delta goes
 	out on SiteRemotes.State with the answers to that tick's clicks after it,
 	which is the order Prediction needs. The boss's view goes out on
 	SiteRemotes.Boss, events on SiteRemotes.Event. A finished site sends its
-	placement order for the ending's timelapse, and starts again after
-	RESET_SECONDS.
+	placement order for the ending's timelapse, and after RESET_SECONDS the
+	next site in SiteList starts, as finishing one unlocks the next.
 
 	Players start each site with a bare skill tree and an empty purse, earn
 	run currency for every first placement, and buy skill levels from
@@ -32,6 +34,7 @@ local Blueprint = require(Shared:WaitForChild("Blueprint"))
 local BossBrain = require(Shared:WaitForChild("BossBrain"))
 local BossConfig = require(Shared:WaitForChild("BossConfig"))
 local SiteConfig = require(Shared:WaitForChild("SiteConfig"))
+local SiteList = require(Shared:WaitForChild("SiteList"))
 local SiteSession = require(Shared:WaitForChild("SiteSession"))
 local SkillTuning = require(Shared:WaitForChild("SkillTuning"))
 local Theme = require(Shared:WaitForChild("Theme"))
@@ -50,33 +53,60 @@ local function groundTop(): number
 end
 local ORIGIN = Vector3.new(24, groundTop(), 24)
 
-local bp = Blueprint.load(require(Shared:WaitForChild("Blueprints"):WaitForChild("WoodcuttersLodge")))
+local blueprints = Shared:WaitForChild("Blueprints")
+local bp
+local siteNumber = 1
 
+local ground: BasePart? = nil
 if not workspace:FindFirstChild("Baseplate") then
-	local ground = Instance.new("Part")
-	ground.Name = "SiteGround"
-	ground.Anchored = true
-	ground.Size = Vector3.new(bp.sizeX * STUDS + 200, 2, bp.sizeZ * STUDS + 200)
-	ground.Position = ORIGIN + Vector3.new(bp.sizeX * STUDS / 2, -1, bp.sizeZ * STUDS / 2)
-	ground.Color = Color3.fromRGB(235, 240, 245)
-	ground.Material = Enum.Material.Snow
-	ground.Parent = workspace
+	local part = Instance.new("Part")
+	part.Name = "SiteGround"
+	part.Anchored = true
+	part.Color = Color3.fromRGB(235, 240, 245)
+	part.Material = Enum.Material.Snow
+	part.Parent = workspace
+	ground = part
 end
 
 -- Hoist pads at the front corners; SiteClient lifts whoever steps on one.
 local props = Instance.new("Folder")
 props.Name = "SiteProps"
-for _, x in { -2, bp.sizeX + 1 } do
+local pads = {}
+for i = 1, 2 do
 	local pad = Instance.new("Part")
 	pad.Name = "HoistPad"
 	pad.Anchored = true
 	pad.Size = Vector3.new(STUDS * 1.6, 0.4, STUDS * 1.6)
-	pad.Position = ORIGIN + Vector3.new((x + 0.5) * STUDS, 0.2, -1.5 * STUDS)
 	pad.Color = Color3.fromRGB(120, 190, 255)
 	pad.Material = Enum.Material.Neon
 	pad.Parent = props
+	pads[i] = pad
 end
 props.Parent = workspace
+
+-- Loads site number n of SiteList and fits the ground and pads to it.
+local function loadSite(n: number)
+	siteNumber = n
+	local entry = SiteList[n]
+	bp = Blueprint.load(require(blueprints:WaitForChild(entry.id)))
+	workspace:SetAttribute("CurrentSite", entry.id)
+	pads[1].Position = ORIGIN + Vector3.new(-1.5 * STUDS, 0.2, -1.5 * STUDS)
+	pads[2].Position = ORIGIN + Vector3.new((bp.sizeX + 1.5) * STUDS, 0.2, -1.5 * STUDS)
+	if ground then
+		ground.Size = Vector3.new(bp.sizeX * STUDS + 200, 2, bp.sizeZ * STUDS + 200)
+		ground.Position = ORIGIN + Vector3.new(bp.sizeX * STUDS / 2, -1, bp.sizeZ * STUDS / 2)
+	end
+end
+
+local function chosenSite(): number
+	local wanted = workspace:GetAttribute("Site")
+	for i, entry in SiteList do
+		if entry.id == wanted then
+			return i
+		end
+	end
+	return 1
+end
 
 -- Remotes, all made before the folder is published so clients find them.
 local remotes = Instance.new("Folder")
@@ -168,7 +198,8 @@ local function sendSnapshot(player: Player)
 	BossRemote:FireClient(player, if session.boss then BossBrain.view(session.boss) else nil)
 end
 
-local function start()
+local function start(n: number)
+	loadSite(n)
 	session = SiteSession.new(bp, nil, function()
 		return random:NextNumber()
 	end)
@@ -182,7 +213,7 @@ local function start()
 	end
 end
 
-start()
+start(chosenSite())
 
 Players.PlayerAdded:Connect(join)
 Players.PlayerRemoving:Connect(function(player)
@@ -290,7 +321,7 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 	if resetAt and os.clock() >= resetAt then
 		resetAt = nil
-		start()
+		start(siteNumber % #SiteList + 1)
 		for _, player in Players:GetPlayers() do
 			sendSnapshot(player)
 		end
