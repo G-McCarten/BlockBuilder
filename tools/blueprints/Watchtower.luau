@@ -1,15 +1,19 @@
 --[[
-	Watchtower: the third site, in graybox. About 9,000 blocks.
+	Watchtower: the third site, in graybox. About 9,600 blocks.
 
-	A square stone tower seventeen cells across on a stepped plinth, its walls
+	A square stone tower seventeen cells across in a walled yard, its walls
 	three cells thick, with a door under a timber canopy and lanterns beside
-	it. A timber stair winds once round the outside, from the plinth to the
-	top. Its treads jut from the walls, so it rises with them and players can
-	climb it while they build. Each tread is two cells long and climbs one
-	cell, each corner has a landing with a lantern on a post, and slits light
-	the stair all the way up. Doors open from the stair onto four timber
-	floors inside, and each floor has an arched window in every face the
-	stair leaves clear.
+	it. The yard's low wall has merlons, a pier with a lantern at each corner,
+	and a gate in front between two lanterns, and a step of stone runs round
+	the tower's foot.
+
+	A timber stair winds once round the outside, from the step to the top.
+	Its treads jut from the walls, so it rises with them and players can climb
+	it while they build. Each tread is two cells long and climbs one cell,
+	each corner has a landing with a lantern on a post, and slits light the
+	stair all the way up. Doors open from the stair onto four timber floors
+	inside, and each floor has an arched window in every face the stair
+	leaves clear.
 
 	At the top the stair comes up through a timber gallery that runs round the
 	tower on corbels, with a rail and a lantern at each corner. In the middle
@@ -43,7 +47,7 @@ local function add(x: number, y: number, z: number, kind: string, after: { numbe
 	return #blocks
 end
 
-local C = 14 -- the tower's middle on x and z
+local C = 16 -- the tower's middle on x and z
 local R = 8 -- the shaft's half width: it spans C - R .. C + R
 local THICK = 3
 local LOW, HIGH = C - R, C + R
@@ -55,14 +59,44 @@ local function ring(x: number, z: number): number
 	return math.max(math.abs(x - C), math.abs(z - C))
 end
 
--- Plinth: two stepped layers of stone.
-for y = 0, 1 do
-	local reach = R + 4 - y
-	for z = C - reach, C + reach do
-		for x = C - reach, C + reach do
-			add(x, y, z, "stone")
+-- The yard: a stone floor out to a low wall with merlons, a gate in the
+-- front, and a pier with a lantern at each corner. A second layer of stone
+-- under the tower and its stair makes a step.
+local YARD = R + 6 -- the yard wall's ring
+for z = C - YARD, C + YARD do
+	for x = C - YARD, C + YARD do
+		add(x, 0, z, "stone")
+		if ring(x, z) <= R + 3 then
+			add(x, 1, z, "stone")
 		end
 	end
+end
+for z = C - YARD, C + YARD do
+	for x = C - YARD, C + YARD do
+		local r = ring(x, z)
+		local corner = math.abs(x - C) >= YARD - 1 and math.abs(z - C) >= YARD - 1
+		local gate = z == C - YARD and math.abs(x - C) <= 1
+		if corner then
+			for y = 1, 5 do
+				add(x, y, z, "stone")
+			end
+			if math.abs(x - C) == YARD and math.abs(z - C) == YARD then
+				add(x, 6, z, "lantern")
+			end
+		elseif r == YARD and not gate then
+			for y = 1, 3 do
+				add(x, y, z, "stone")
+			end
+			if (x + z) % 2 == 0 then
+				add(x, 4, z, "stone")
+			end
+		end
+	end
+end
+-- Lanterns on posts either side of the gate.
+for _, x in { C - 2, C + 2 } do
+	add(x, 4, C - YARD, "stone")
+	add(x, 5, C - YARD, "lantern")
 end
 
 -- The stair's path: slices two cells wide (the cell against the wall and
