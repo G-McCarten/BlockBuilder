@@ -37,9 +37,27 @@ local function embers(world, player): number
 	return if value then value.Value else -1
 end
 
+-- Blocks drawn one by one, near the camera.
 local function blockCount(world): number
 	local folder = world.realGame:GetService("Workspace"):FindFirstChild("SiteBlocks")
 	return if folder then #folder:GetChildren() else -1
+end
+
+-- Merged boxes, far from the camera, and how many cells they cover.
+local function farBoxes(world): (number, number)
+	local folder = world.realGame:GetService("Workspace"):FindFirstChild("SiteFar")
+	local cells = 0
+	for _, part in folder:GetChildren() do
+		local size = part.Size / STUDS
+		cells += math.round(size.X * size.Y * size.Z)
+	end
+	return #folder:GetChildren(), cells
+end
+
+-- Every standing block drawn, near or far.
+local function drawnCount(world): number
+	local _, cells = farBoxes(world)
+	return blockCount(world) + cells
 end
 
 local function hudText(world, player, name: string): string
@@ -93,7 +111,7 @@ Test.case("the Site attribute starts any site, and its blocks lay", function()
 		world:step(1 / 60)
 	end
 	release(world)
-	Test.check(blockCount(world) > 100, `laid {blockCount(world)} in the hall`)
+	Test.check(drawnCount(world) > 100, `laid {drawnCount(world)} in the hall`)
 	Test.equal(#world.errors, 0, errorsOf(world))
 end)
 
@@ -112,7 +130,7 @@ Test.case("holding the mouse over the plinth lays blocks, shown at once and paid
 		world:step(1 / 60)
 	end
 	Test.equal(#world.errors, 0, errorsOf(world))
-	local blocks = blockCount(world)
+	local blocks = drawnCount(world)
 	Test.check(blocks >= 24, `the client shows {blocks} blocks`)
 	Test.check(embers(world, player) >= blocks, `paid {embers(world, player)} for {blocks}`)
 	Test.check(world.sounds >= 24, "a tick a placement")
@@ -185,6 +203,44 @@ Test.case("a hoist pad lifts the player to the working height", function()
 	Test.equal(#world.errors, 0, errorsOf(world))
 end)
 
+Test.case("far chunks draw as merged boxes and come back near without losing a block", function()
+	local world = boot({ Batch = 400, Grasp = 80, Cooldown = 0.05, Difficulty = "None" })
+	hold(world)
+	for frame = 1, 90 do
+		local x, z = (frame * 7) % 41, (frame * 11) % 28
+		world.aimRay = Ray.new(ORIGIN + Vector3.new(x + 0.5, 40, z + 0.5) * STUDS, Vector3.new(0, -1, 0))
+		world:step(1 / 60)
+	end
+	release(world)
+	-- Look from right above the site: every chunk near.
+	world.camera.CFrame = CFrame.new(ORIGIN + Vector3.new(60, 30, 40))
+	for _ = 1, 30 do
+		world:step(1 / 60)
+	end
+	local standing = blockCount(world)
+	Test.check(standing > 2000, `built {standing}`)
+	Test.equal(select(1, farBoxes(world)), 0, "no merged boxes near")
+
+	-- Far away: merged boxes, the same cells.
+	world.camera.CFrame = CFrame.new(ORIGIN + Vector3.new(60, 30, 2000))
+	for _ = 1, 30 do
+		world:step(1 / 60)
+	end
+	local boxes, cells = farBoxes(world)
+	Test.equal(blockCount(world), 0, "no single blocks far away")
+	Test.equal(cells, standing, "the boxes cover every standing block")
+	Test.check(boxes < standing / 5, `{standing} blocks in {boxes} boxes`)
+
+	-- Back near: single blocks again.
+	world.camera.CFrame = CFrame.new(ORIGIN + Vector3.new(60, 30, 40))
+	for _ = 1, 30 do
+		world:step(1 / 60)
+	end
+	Test.equal(blockCount(world), standing, "every block drawn singly again")
+	Test.equal(select(1, farBoxes(world)), 0, "the boxes are gone")
+	Test.equal(#world.errors, 0, errorsOf(world))
+end)
+
 Test.case("a finished site is announced, then a fresh one replaces it", function()
 	local world, player = boot()
 	world.workspaceProxy:SetAttribute("Difficulty", "None")
@@ -220,11 +276,11 @@ Test.case("a finished site is announced, then a fresh one replaces it", function
 	for _ = 1, 6 * 60 do
 		world:step(1 / 60)
 	end
-	Test.equal(blockCount(world), 5928, "the whole build, risen again")
+	Test.equal(drawnCount(world), 5928, "the whole build, risen again")
 	for _ = 1, 20 * 60 do
 		world:step(1 / 60)
 	end
-	Test.equal(blockCount(world), 0, "a fresh site after the wait")
+	Test.equal(drawnCount(world), 0, "a fresh site after the wait")
 	Test.equal(embers(world, player), 0, "with an empty purse")
 	Test.equal(world.realGame:GetService("Workspace"):GetAttribute("CurrentSite"), "IceBridge", "the next site")
 	Test.equal(hudText(world, player, "Built"), "Ice Bridge: laid 0%", "the client loaded it")

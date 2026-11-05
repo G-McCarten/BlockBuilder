@@ -5,7 +5,11 @@
 	that site's blueprint, and switches when the server moves on.
 
 	The finished build always shows as one faint silhouette, made of the
-	boxes CollisionBoxes merges the whole blueprint into. A finished site
+	boxes CollisionBoxes merges the whole blueprint into. Chunks near the
+	camera draw each block as its own pooled Part; far ones draw their
+	standing blocks as a few merged boxes per kind, rebuilt on a budget, and
+	a chunk switches with hysteresis, building its new form before dropping
+	the old so nothing pops. A finished site
 	plays the ending: the build rises again in the order it was placed.
 
 	The client keeps a mirror of the site, fed by SiteRemotes.State, with
@@ -96,6 +100,11 @@ local GHOST_COLOR = Color3.fromRGB(170, 215, 255)
 local GHOST_RADIUS = 14
 local DROP_DISTANCE = 70
 local MAX_DROPS_PER_FRAME = 24
+-- A chunk draws its blocks one by one inside NEAR_STUDS of the camera, and
+-- merged beyond FAR_STUDS; between, it keeps what it has.
+local NEAR_STUDS = 90
+local FAR_STUDS = 110
+local MERGES_PER_FRAME = 2
 
 local function cellPosition(s: number): Vector3
 	return ORIGIN + Vector3.new(bp.x[s] + 0.5, bp.y[s] + 0.5, bp.z[s] + 0.5) * STUDS
@@ -183,10 +192,17 @@ local function givePart(part: BasePart)
 	table.insert(pool, part)
 end
 
+-- While a chunk switches between near and far, its blocks appear without dropping.
+local quiet = false
+
 local function dropIn(part: BasePart, s: number)
 	local final = cellCFrame(s)
 	local camera = workspace.CurrentCamera
-	if dropsThisFrame >= MAX_DROPS_PER_FRAME or (camera.CFrame.Position - final.Position).Magnitude > DROP_DISTANCE then
+	if
+		quiet
+		or dropsThisFrame >= MAX_DROPS_PER_FRAME
+		or (camera.CFrame.Position - final.Position).Magnitude > DROP_DISTANCE
+	then
 		part.CFrame = final
 		return
 	end
@@ -218,7 +234,22 @@ local function markRedraw(s: number)
 	redrawQueue[s] = true
 end
 
+local chunkFar: { [number]: boolean } = {}
+local farDirty: { [number]: boolean } = {}
+
 local function redraw(s: number)
+	local c = index.chunkOf[s]
+	if chunkFar[c] then
+		-- Far: the chunk's merged boxes will be rebuilt, on a budget.
+		farDirty[c] = true
+		local part = blocks[s]
+		if part then
+			settingFrom[s] = nil
+			blocks[s] = nil
+			givePart(part)
+		end
+		return
+	end
 	local state = BuildSite.state(mirror, s)
 	local standing = state == State.PLACED or state == State.UNDOING
 	local setting = state == State.SETTING
@@ -255,6 +286,101 @@ local function redraw(s: number)
 		blocks[s] = nil
 		givePart(part)
 	end
+end
+
+-- Far chunks ----------------------------------------------------------------
+
+local farFolder = Instance.new("Folder")
+farFolder.Name = "SiteFar"
+farFolder.Parent = workspace
+local farParts: { [number]: { BasePart } } = {}
+local zeroRate = setmetatable({}, {
+	__index = function()
+		return 0
+	end,
+})
+
+local function clearFar(c: number)
+	local list = farParts[c]
+	if list then
+		for _, part in list do
+			part:Destroy()
+		end
+		farParts[c] = nil
+	end
+end
+
+-- The chunk's standing blocks as merged boxes, one set per kind.
+local function buildFar(c: number)
+	clearFar(c)
+	local byKind: { [number]: { [number]: number } } = {}
+	for i = index.slotStart[c], index.slotStart[c + 1] - 1 do
+		local s = index.slotList[i]
+		local state = BuildSite.state(mirror, s)
+		if state == State.PLACED or state == State.UNDOING then
+			local kind = bp.kind[s]
+			local set = byKind[kind]
+			if set == nil then
+				set = setmetatable({}, getmetatable(zeroRate))
+				byKind[kind] = set
+			end
+			set[s] = 1
+		end
+	end
+	local list = {}
+	local out = {}
+	for kind, progress in byKind do
+		local look = KIND_LOOK[bp.palette[kind]] or FALLBACK_LOOK
+		local n = CollisionBoxes.build(index, { progress = progress, rate = zeroRate }, c, out)
+		for b = 0, n - 1 do
+			local o = b * 6
+			local x0, y0, z0, x1, y1, z1 = out[o + 1], out[o + 2], out[o + 3], out[o + 4], out[o + 5], out[o + 6]
+			local part = Instance.new("Part")
+			part.Anchored = true
+			part.CanQuery = false
+			part.CanTouch = false
+			part.TopSurface = Enum.SurfaceType.Smooth
+			part.BottomSurface = Enum.SurfaceType.Smooth
+			part.Color = look[1]
+			part.Material = look[2]
+			part.Size = Vector3.new(x1 - x0, y1 - y0, z1 - z0) * STUDS
+			part.CFrame = CFrame.new(ORIGIN + Vector3.new(x0 + x1, y0 + y1, z0 + z1) * (STUDS / 2))
+			part.Parent = farFolder
+			table.insert(list, part)
+		end
+	end
+	farParts[c] = list
+	farDirty[c] = nil
+end
+
+-- Switches chunk c to near (individual blocks) or far (merged), building the
+-- new form before dropping the old.
+local function setFar(c: number, far: boolean)
+	if (chunkFar[c] == true) == far then
+		return
+	end
+	quiet = true
+	if far then
+		buildFar(c)
+		chunkFar[c] = true
+		for i = index.slotStart[c], index.slotStart[c + 1] - 1 do
+			redraw(index.slotList[i])
+		end
+		farDirty[c] = nil
+	else
+		chunkFar[c] = nil
+		for i = index.slotStart[c], index.slotStart[c + 1] - 1 do
+			redraw(index.slotList[i])
+		end
+		clearFar(c)
+		farDirty[c] = nil
+	end
+	quiet = false
+end
+
+local function chunkDistance(c: number, from: Vector3): number
+	local x0, y0, z0, x1, y1, z1 = SiteIndex.bounds(index, c)
+	return (ORIGIN + Vector3.new(x0 + x1, y0 + y1, z0 + z1) * (STUDS / 2) - from).Magnitude
 end
 
 -- Ghosts and aim ------------------------------------------------------------
@@ -311,6 +437,11 @@ local function clearAll()
 	end
 	table.clear(settingFrom)
 	table.clear(redrawQueue)
+	for c in farParts do
+		clearFar(c)
+	end
+	table.clear(chunkFar)
+	table.clear(farDirty)
 end
 
 local timelapse: { order: { number }, started: number, shown: number }? = nil
@@ -834,6 +965,10 @@ end)
 
 StateRemote.OnClientEvent:Connect(function(kind, buf, answers)
 	if kind == "timelapse" then
+		-- Every chunk near for the ending, so each block can rise on its own.
+		for c in table.clone(chunkFar) do
+			setFar(c, false)
+		end
 		for _, part in blocks do
 			part.Parent = nil
 		end
@@ -898,6 +1033,18 @@ RunService.RenderStepped:Connect(function(dt)
 			redraw(s)
 		end
 		table.clear(redrawQueue)
+		local merges = 0
+		for c in farDirty do
+			if merges >= MERGES_PER_FRAME then
+				break
+			end
+			if chunkFar[c] then
+				buildFar(c)
+				merges += 1
+			else
+				farDirty[c] = nil
+			end
+		end
 	end
 
 	local now = os.clock()
@@ -994,6 +1141,17 @@ RunService.RenderStepped:Connect(function(dt)
 	arcClock += dt
 	if arcClock >= 0.25 then
 		arcClock = 0
+		if timelapse == nil then
+			local camera = workspace.CurrentCamera.CFrame.Position
+			for c = 1, index.chunkCount do
+				local d = chunkDistance(c, camera)
+				if d > FAR_STUDS then
+					setFar(c, true)
+				elseif d < NEAR_STUDS then
+					setFar(c, false)
+				end
+			end
+		end
 		applyArc()
 		refreshShop()
 		Prediction.expire(pred, now, 4)
