@@ -26,15 +26,18 @@ Controls:
 - Q, or the button on the right, calls the Sled Train once its skill is bought.
 - On a gamepad, R2 lays at the screen centre and X calls the crew.
 - Step on a blue hoist pad to ride up to the working height.
+- On a phone, tap or hold to lay. The Sled Train and Forge Hammer buttons sit beside the jump button. Tap Shop at the top left to open the skill shop, which starts folded.
+- Settings, beside the shop's toggle, turns sounds and hints on or off and sets how far ghosts show (small, medium, large), for the session.
 
 What it does:
 
 - **Hints:** a tip at the bottom of the screen when its moment comes: how to lay, when you can afford a skill, the boss and its works, the crew, and the hoist pads.
-- **Blocks:** your clicks show at once and roll back if the server refuses them. Blocks near the camera drop in with a small squash, and a tick climbs in pitch during a fast chain.
-- **Ghosts:** the finished build always shows as a faint silhouette. READY slots near you pulse as ghosts.
+- **Blocks:** your clicks show at once and roll back if the server refuses them. Blocks near the camera drop in with a small squash and a puff of dust, and a tick climbs in pitch during a fast chain.
+- **Ghosts:** the finished build always shows as a faint silhouette. READY slots near you pulse as ghosts, and the one you'd lay shows brighter than the rest.
 - **Collisions:** a block that lands where you stand moves you onto it, and a character stuck for 2 seconds is moved clear.
-- **The boss:** the Rime rises at 15% built. Walk up to it to shoo it away, and break its frost marks (and, on Hard, its ice chains) for a bounty.
-- **The world:** the blizzard thins and night falls as the hold rises. When it's finished, a ten-second timelapse raises the build again in the order it was placed. Each player is told their share of the site's Hearthstones, split by blocks placed, and what they did. 30 seconds later the next site starts, with a bare tree and an empty purse.
+- **The boss:** the Rime rises at 15% built. Walk up to it to shoo it away, and break its frost marks (and, on Hard, its ice chains) for a bounty. It wears its name, and a faint ring under it shows how close you must walk to shoo it.
+- **The world:** the hoist pads are labelled, and a sign before the site names it. The blizzard thins and night falls as the hold rises. When it's finished, a ten-second timelapse raises the build again in the order it was placed. Each player is told their share of the site's Hearthstones, split by blocks placed, and what they did. 30 seconds later the next site starts, with a bare tree and an empty purse.
+- **Joining late:** a big site is drawn over a few frames, nearest first.
 
 Workspace attributes change it while it runs:
 
@@ -44,7 +47,7 @@ Workspace attributes change it while it runs:
 - `TestSpeed`: 1 to 5, how many times faster than real time the site runs.
 - `PowerTool`: true gives everyone the Forge Hammer, as its game pass will. Swing it with F.
 - `Pets`: how many hearthlings each player brings (0 to 4), read when they join. They fly to the nearest work near their owner, lay it, and rest.
-- `SitePlaced` is set by the server each tick: how many blocks stand, for debugging.
+- `SitePlaced` is set by the server each tick: how many blocks stand, for debugging. `CurrentDifficulty` is set when a site starts: the difficulty in play.
 - `AbilityPets`: how many rarer hearthlings each player brings. Every 20 seconds, one lays everything workable around its owner, as Unharvester's Cinderfall pets do.
 - `Cooldown`, `Grasp`, `Batch`, `SetTime`, `ChainChance`, `ChainRadius`, `PerfectChance`, `CrewWidth`, `CrewCooldown`: each overrides that stat for everyone.
 
@@ -59,7 +62,7 @@ It's a sandbox, not the game. It has no meta, saves, eggs, mounts, parties or me
 | BuildSite: slot states and rules (4.2), shields, binding cap | `src/shared/BuildSite.luau` | tested |
 | SiteCodec: snapshot and delta messages | `src/shared/SiteCodec.luau` | tested |
 | SiteConfig: cell size, chunk size, base grasp, headroom | `src/shared/SiteConfig.luau` | |
-| SiteIndex: chunks, nearest and region queries (4.3, 5.2) | `src/shared/SiteIndex.luau` | tested |
+| SiteIndex: chunks; nearest, fenced and region queries; band slices (4.3, 5.2) | `src/shared/SiteIndex.luau` | tested, and checked against plain versions in `tests/Equivalence.spec.luau` |
 | SiteRay: grid raycast for aiming (4.3) | `src/shared/SiteRay.luau` | tested |
 | Prediction: clicks shown at once, rolled back if refused (4.3) | `src/shared/Prediction.luau` | tested over a laggy network |
 | CollisionBoxes: greedy-merged boxes per chunk (4.5) | `src/shared/CollisionBoxes.luau` | tested |
@@ -75,6 +78,7 @@ It's a sandbox, not the game. It has no meta, saves, eggs, mounts, parties or me
 | Prototype server and client | `src/server`, `src/client` | run under a Roblox stand-in in tests |
 | BotBrain: a bot that plays a site, for the sim and for testing alone in Studio | `src/shared/BotBrain.luau` | tested |
 | Run sim | `tools/sim/` | tested |
+| Bench: a site's tick, delta and the client's frame at scale | `tools/bench.luau` | measured in Lune |
 | Stamp tool, from a script or a Studio model: multi-cell parts, inherited kinds, stages | `tools/stamp_blueprint.luau`, `tools/lib/ModelSource.luau`, `docs/authoring.md` | tested; not yet tried on a real Studio export |
 | Content drafts: hearthlings and eggs, sled beasts, achievements, tasks, lore, news, The Warm Welcome | `src/shared/content/` | structure tested, numbers placeholders |
 | SiteList and KindLooks: the sites in order with their payouts, and each block kind's look | `src/shared/SiteList.luau`, `src/shared/KindLooks.luau` | tested, payouts provisional |
@@ -194,6 +198,12 @@ lune run tools/stamp_blueprint WoodcuttersLodge
 
 ```bash
 lune run tools/stamp_blueprint WoodcuttersLodge --check
+```
+
+Time a site's tick at scale: the Great Hall and a 64,900-slot generated site with 1, 4 and 8 bots against the Nightmare boss, with its delta bytes, its snapshot size, and the prototype client's frame under FakeRoblox, broken down by where the time goes. A checksum shows that two runs played the same. Times are Lune's, not Studio's, so compare runs with each other:
+
+```bash
+lune run tools/bench
 ```
 
 Format the code:
