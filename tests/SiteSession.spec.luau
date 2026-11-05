@@ -219,6 +219,28 @@ Test.case("the ability's band crosses the site placing blocks, then ends", funct
 	Test.check(session.tally[1] == session.site.placedCount, "all credited to its owner")
 end)
 
+Test.case("a narrow band keeps its rate at 60 steps a second", function()
+	-- Two steps' credit at 1/60 s is under one block for a band 2 cells wide.
+	local stats = baseStats()
+	stats.crewWidth = 2
+	local fast, slow = hutSession(), hutSession()
+	for _, session in { fast, slow } do
+		SiteSession.setStats(session, 1, stats)
+		Test.check(SiteSession.useAbility(session, 1), "starts")
+	end
+	for _ = 1, 600 do
+		SiteSession.step(fast, 1 / 60)
+	end
+	for _ = 1, 100 do
+		SiteSession.step(slow, 0.1)
+	end
+	local seconds = (fast.blueprint.sizeX + stats.crewWidth) / stats.crewSpeed
+	local most = SiteSession.DEFAULT_RULES.bandRate * stats.crewWidth * seconds
+	local a, b = fast.site.placedCount, slow.site.placedCount
+	Test.check(a > most / 2 and a <= most + 2, `at 1/60 s the band placed {a}, at most {most}`)
+	Test.check(math.abs(a - b) <= 0.1 * b + 2, `{a} at 1/60 s against {b} at 0.1 s`)
+end)
+
 Test.case("the power tool needs its pass and has a cooldown", function()
 	local session = hutSession()
 	Test.check(not (SiteSession.useTool(session, 1, 0, 1)), "no tool, no swing")

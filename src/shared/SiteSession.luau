@@ -470,8 +470,10 @@ local function stepBands(session: Session, dt: number)
 			table.remove(session.bands, i)
 		else
 			-- Unspent credit carries over a step, not longer, so a band can't hoard.
+			-- It can always save up one block, or a narrow band at 60 steps a
+			-- second would never afford one.
 			local rate = session.rules.bandRate * band.width
-			band.credit = math.min(band.credit + rate * dt, rate * dt * 2)
+			band.credit = math.min(band.credit + rate * dt, math.max(1, rate * dt * 2))
 			local budget = math.floor(band.credit)
 			if budget > 0 then
 				band.credit -= SiteActions.sweep(
