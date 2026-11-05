@@ -117,7 +117,10 @@ Co-op reaches those ratios through `partyShare`: every teammate also earns the b
 - **Base grasp.** `SiteConfig` assumes a base grasp of 5 cells (15 studs at 3 studs a block) and 2 cells of headroom. Replace the grasp with `UpgradeConfig`'s, then restamp and revalidate every blueprint.
 - **Reach model.** The validator checks reach layer by layer: while a layer is worked, the layers below are built and the ones above aren't. So it lets a player stand on the layer being built, but never in the cell being placed. It doesn't check that a player can walk to the spot where they'd stand; hoist pads cover that.
 - **Layout.** Shared code lives under `src/shared`; move it to match the fork's folders.
-- **Requires.** `SiteActions`, `BossEffects`, `BossBrain`, `SiteSession` and `Prediction` require their neighbours by string (`require("./BuildSite")`). Lune accepts that, and so does the test harness, which resolves it the way Roblox's require-by-string does. It hasn't been tried in real Studio. If the place refuses it, switch those five files to `require(script.Parent.BuildSite)`.
+- **Requires.** `SiteActions`, `BossEffects`, `BossBrain`, `SiteSession`, `Prediction`, `BotBrain` and `HintConfig` require their neighbours by string (`require("./BuildSite")`). Lune accepts that, and so does the test harness, which resolves it the way Roblox's require-by-string does. It hasn't been tried in real Studio. If the place refuses it, switch those seven files to `require(script.Parent.BuildSite)`.
+- **Bots.** `BotBrain` plays the sim and the prototype's `BotPlayers`. Unharvester's `Bots` do the same job in its Studio tests; keep whichever fits the fork, and point the other at it.
+- **Payouts and counts.** `SiteList`'s payouts stand in for `TitheConfig`. `SiteSession.counts` is what `TaskService` and `AchievementService` would read.
+- **Hints.** `Hints` and `HintConfig` stand in for `FieldTutorial`.
 - **Type checking.** Nothing has been run through `luau-lsp`; selene lints it with a small Roblox standard (`roblox_lite.yml`). Record it all in the fork's baseline.
 
 ## Slots
