@@ -39,6 +39,12 @@
 	how far ghosts show; the choices last the session, kept as attributes on
 	the local player.
 
+	For the renderer's stress test, a site named Stress:<blocks> is built
+	here from its size by StressSite, as the server builds it. A readout of
+	the frame rate and what's drawn shows while the StressTest attribute is
+	set, and F3 shows or hides it. During a stress ladder the camera tours
+	each step near and far, and the last step prints a table of the results.
+
 	Luau allows a function 200 locals, the main chunk included, so each
 	section keeps its own in a do block and shares only what others call.
 ]]
@@ -1989,12 +1995,13 @@ end
 -- While a stress ladder runs, which the server shows in StressStep and
 -- StressSteps, the camera tours every step the same way. The client draws
 -- the step from the near view, then says so on SiteRemotes.Stress, which
--- starts the server's hold of StressStepSeconds. It spends the first half
--- of the hold in the near view, at the site's edge where the most standing
--- blocks lie in near chunks, and the second half in a far overview, from
--- where every chunk is far. In each view it times the frames after a short
--- settle, for a row of the table the last step prints to the output and
--- shows on screen. Then the camera goes back as it was.
+-- starts the server's hold of StressStepSeconds. It spends half the hold in
+-- the near view, at the site's edge where the most standing blocks lie in
+-- near chunks, and half in a far overview, from where every chunk is far,
+-- keeping a twentieth spare so the next step never cuts it short. In each
+-- view it times the frames after a short settle, for a row of the table
+-- the last step prints to the output and shows on screen. Then the camera
+-- goes back as it was.
 local stressSnapshot
 do
 	-- Seconds a view settles before its frames count, so the switch between
