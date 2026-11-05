@@ -130,11 +130,13 @@ local function says(message: string, ...: string)
 	end
 end
 
+-- The house's wall corners on its top layer, in the cells the stamp gives it.
+local HOUSE_WALL_CORNERS = { { 1, 3, 1 }, { 7, 3, 1 }, { 1, 3, 7 }, { 7, 3, 7 } }
+
 -- A small house, on the grid at cell (10, 2, -5): a floor, walls with a door
 -- (Stage 1) and a stepped roof with a chimney (Stage 2) that overhangs the
 -- walls by a cell. Its parts span many cells, the side walls are turned,
 -- and most parts take their kind from the groups around them. 236 blocks.
-local HOUSE_WALL_CORNERS = { { 1, 3, 1 }, { 7, 3, 1 }, { 1, 3, 7 }, { 7, 3, 7 } }
 local function house()
 	local ox, oy, oz = 10, 2, -5
 	local function add(
