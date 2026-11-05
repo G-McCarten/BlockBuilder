@@ -80,6 +80,35 @@ Test.case("caps a site at 65,535 slots", function()
 	Test.check(full.ok, table.concat(full.errors, "\n"))
 end)
 
+Test.case("accepts the first site, the WoodcuttersLodge, at about 6,000 blocks", function()
+	local report = BlueprintValidator.validate(Sites.lodge())
+	Test.check(report.ok, table.concat(report.errors, "\n"))
+	Test.check(math.abs(report.stats.count - 6000) <= 600, `within 10% of 6,000, got {report.stats.count}`)
+end)
+
+Test.case("reach is per layer: a thick floor's lower layer is laid from on top of it", function()
+	-- A 20 x 20 floor two layers thick. Its lower layer's middle is far from
+	-- the ground around it, but is reached by standing on the lower layer
+	-- before the upper one goes down.
+	local blocks = {}
+	for y = 0, 1 do
+		for z = 0, 19 do
+			for x = 0, 19 do
+				table.insert(blocks, block(x, y, z))
+			end
+		end
+	end
+	local report = validate(source(blocks))
+	Test.check(report.ok, table.concat(report.errors, "\n"))
+end)
+
+Test.case("nobody stands in the cell they are placing", function()
+	-- A one-cell column: each cell would be in reach from on top of the one
+	-- below, but that stand cell is the slot itself.
+	local report = validate(Sites.tower(8, false), { graspCells = 2 })
+	Test.equal(report.stats.unreachable, 5, "only the three lowest cells are in reach from the ground")
+end)
+
 Test.case("finds the top of a bare tower out of reach, and steps fix it", function()
 	local bare = validate(Sites.tower(20, false), { graspCells = 5 })
 	Test.check(not bare.ok, "a 20-cell column can't be reached from the ground")

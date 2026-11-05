@@ -14,12 +14,15 @@
 	    means some order places every block, so a site can always be finished
 	  - every slot is within base grasp of a cell a player can stand in
 
-	Reach. A stand cell is a cell outside the blueprint, with headroom above it
-	also outside the blueprint, that rests on the ground or on a blueprint block
-	no higher than the slot's own layer, other than the slot itself. A player's
-	reach starts half a cell above the stand cell's centre. The check doesn't
-	prove the block underfoot is placed first or that a player can walk to the
-	stand cell; hoist pads lift players to the working height for that.
+	Reach is checked layer by layer. While a layer is worked, the layers below
+	it are built, the layers above it aren't, and the layer itself is part
+	built. So for a slot on layer L, a stand cell is a cell with headroom above
+	it where nothing below layer L stands, resting on the ground or on a
+	blueprint block no higher than layer L. Neither the stand cell, its
+	headroom, nor its floor may be the slot itself: nobody stands where they are
+	placing. A player's reach starts half a cell above the stand cell's centre.
+	The check doesn't prove a player can walk to the stand cell; hoist pads lift
+	players to the working height for that.
 
 	The report also gives stats: layers, overhangs, extra supports, and depth,
 	the longest chain of supports from the ground.
@@ -280,10 +283,14 @@ function BlueprintValidator.validate(bp: BlueprintLike, options: Options?): Repo
 			local found = false
 			for i = 1, offsetCount do
 				local sx, sy, sz = px + ox[i], py + oy[i], pz + oz[i]
-				if sy >= 0 and lookup(sx, sy, sz) == nil then
+				if sy >= 0 then
+					-- No block below the slot's layer stands in the stand cell
+					-- or its headroom, and neither is the slot itself.
 					local clear = true
-					for h = 1, headroom - 1 do
-						if lookup(sx, sy + h, sz) ~= nil then
+					for h = 0, headroom - 1 do
+						local cy = sy + h
+						local there = lookup(sx, cy, sz)
+						if there == s or (there ~= nil and cy < py) then
 							clear = false
 							break
 						end

@@ -9,8 +9,7 @@
 	Blueprint.Source. Stamping from a Studio Model of grid-aligned parts is
 	still to come.
 
-	Reach is checked with a base grasp of GRASP_CELLS cells and HEADROOM_CELLS
-	cells of headroom above a stand cell.
+	Reach is checked with SiteConfig's base grasp and headroom.
 ]]
 
 local fs = require("@lune/fs")
@@ -19,9 +18,7 @@ local process = require("@lune/process")
 
 local Blueprint = require("../src/shared/Blueprint")
 local BlueprintValidator = require("../src/shared/BlueprintValidator")
-
-local GRASP_CELLS = 5
-local HEADROOM_CELLS = 2
+local SiteConfig = require("../src/shared/SiteConfig")
 
 local name = process.args[1]
 local check = process.args[2] == "--check"
@@ -40,7 +37,10 @@ end
 local source = luau.load(fs.readFile(sourcePath), { debugName = sourcePath })()
 local bp = Blueprint.build(source)
 
-local report = BlueprintValidator.validate(bp, { graspCells = GRASP_CELLS, headroomCells = HEADROOM_CELLS })
+local report = BlueprintValidator.validate(bp, {
+	graspCells = SiteConfig.BASE_GRASP_CELLS,
+	headroomCells = SiteConfig.HEADROOM_CELLS,
+})
 local stats = report.stats
 print(
 	`{name}: {stats.count} slots, {stats.sizeX} x {stats.sizeY} x {stats.sizeZ} cells, `

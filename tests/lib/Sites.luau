@@ -3,12 +3,69 @@
 ]]
 
 local Blueprint = require("../../src/shared/Blueprint")
+local BuildSite = require("../../src/shared/BuildSite")
 local Rng = require("./Rng")
 
 local Sites = {}
 
 function Sites.hut(): Blueprint.Blueprint
 	return Blueprint.load(require("../../src/shared/Blueprints/TestHut"))
+end
+
+function Sites.lodge(): Blueprint.Blueprint
+	return Blueprint.load(require("../../src/shared/Blueprints/WoodcuttersLodge"))
+end
+
+-- A site with every block placed.
+function Sites.finished(bp: Blueprint.Blueprint): BuildSite.Site
+	local site = BuildSite.new(bp)
+	while site.placedCount < bp.count do
+		local before = site.placedCount
+		for s = 1, bp.count do
+			BuildSite.place(site, s, BuildSite.Cause.HAND, 1)
+		end
+		assert(site.placedCount > before, "the blueprint can't be finished")
+	end
+	return site
+end
+
+-- A site part way through a run: blocks placed in random order, some setting,
+-- some being undone.
+function Sites.partlyBuilt(bp: Blueprint.Blueprint, seed: number, placements: number): BuildSite.Site
+	local rng = Rng.new(seed)
+	local site = BuildSite.new(bp)
+	local ready = {}
+	for s = 1, bp.count do
+		if site.unmet[s] == 0 then
+			table.insert(ready, s)
+		end
+	end
+	local done = 0
+	while done < placements and #ready > 0 do
+		local i = rng:int(1, #ready)
+		local s = ready[i]
+		ready[i] = ready[#ready]
+		ready[#ready] = nil
+		if BuildSite.place(site, s, BuildSite.Cause.HAND, 1) then
+			done += 1
+			for j = bp.dependentStart[s], bp.dependentStart[s + 1] - 1 do
+				local d = bp.dependentList[j]
+				if site.unmet[d] == 0 then
+					table.insert(ready, d)
+				end
+			end
+		end
+	end
+	for _, s in ready do
+		if rng:next() < 0.2 then
+			BuildSite.startSetting(site, s, rng:range(0.5, 2), BuildSite.Cause.CHAIN, 1)
+		end
+	end
+	for _ = 1, placements // 20 do
+		BuildSite.undo(site, rng:int(1, bp.count), rng:range(0.5, 2), BuildSite.Cause.BOSS, 0)
+	end
+	BuildSite.step(site, 0.1)
+	return site
 end
 
 -- Columns of random height over a size x size square, with overhanging

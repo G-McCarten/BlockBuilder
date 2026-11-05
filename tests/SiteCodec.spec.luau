@@ -118,8 +118,19 @@ Test.case("unknown messages are refused", function()
 	Test.check(not pcall(SiteCodec.decode, buffer.fromstring("\9\0\0"), function() end), "kind 9")
 end)
 
-Test.case("the site, blueprint and codec create no Instance per block", function()
-	for _, name in { "Blueprint", "BlueprintValidator", "BuildSite", "SiteCodec" } do
+Test.case("the shared site modules create no Instance per block", function()
+	for _, name in
+		{
+			"Access",
+			"Blueprint",
+			"BlueprintValidator",
+			"BuildSite",
+			"CollisionBoxes",
+			"SiteCodec",
+			"SiteIndex",
+			"SiteRay",
+		}
+	do
 		local text = fs.readFile(`src/shared/{name}.luau`)
 		for _, banned in { "Instance.new", ":Clone(", "game:", "workspace" } do
 			Test.check(not string.find(text, banned, 1, true), `{name} uses {banned}`)
