@@ -205,8 +205,9 @@ local function setPeace(brain: Brain, session: SessionLike, on: boolean)
 		return
 	end
 	if on then
-		-- At most one circle every peace.every seconds, so the errand comes
-		-- as often on a long site as on a compact one.
+		-- At most one circle every peace.every seconds: a stop sooner than
+		-- that has none, so the errand comes as often on a long site as on a
+		-- compact one. The boss still mends there until it's shooed.
 		if session.clock < brain.peaceReadyAt then
 			return
 		end
@@ -514,9 +515,6 @@ function BossBrain.step(brain: Brain, session: SessionLike, dt: number)
 				brain.arrived = true
 				setPeace(brain, session, true)
 			end
-		elseif not brain.peaceOn and tuning.peace and session.clock >= brain.peaceReadyAt then
-			-- It arrived too soon after its last circle: it raises one once it may.
-			setPeace(brain, session, true)
 		end
 		brain.mendTimer -= dt
 		if brain.mendTimer <= 0 then

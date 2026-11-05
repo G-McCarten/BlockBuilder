@@ -193,8 +193,8 @@ Test.case("hard: a peace circle comes at most once every peace.every seconds", f
 	SiteSession.takeEvents(session)
 	local boss = session.boss :: BossBrain.Brain
 	local raised: { number } = {}
-	-- The player shoos every circle the moment it goes up, so only the
-	-- spacing holds the next one back.
+	-- The player shoos the boss wherever it stops, as bots do, so only the
+	-- spacing holds the next circle back.
 	while session.clock < 4 * every do
 		SiteSession.move(session, 1, -40, 1, -40)
 		SiteSession.step(session, 0.25)
@@ -203,7 +203,7 @@ Test.case("hard: a peace circle comes at most once every peace.every seconds", f
 				table.insert(raised, session.clock)
 			end
 		end
-		if boss.peaceOn then
+		if boss.arrived then
 			SiteSession.move(session, 1, boss.x, boss.y, boss.z)
 			SiteSession.step(session, 0.1)
 		end
