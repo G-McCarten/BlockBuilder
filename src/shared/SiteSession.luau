@@ -372,7 +372,7 @@ function SiteSession.request(session: Session, userId: number, slot: number): (b
 		return false, "cooling_down", 0
 	end
 
-	local count = SiteActions.hand(site, session.index, slot, worker.x, worker.y, worker.z, {
+	local count = SiteActions.hand(site, session.index, slot, {
 		grasp = stats.grasp,
 		batch = stats.batch,
 		chainChance = stats.chainChance,

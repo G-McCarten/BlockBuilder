@@ -6,9 +6,9 @@
 	action does. Actions take their numbers as arguments; the skill tree, pets
 	and configs supply them.
 
-	  hand          a player's click: the aimed slot, then the nearest READY or
-	                SETTING slots within grasp up to the batch size. Each block
-	                placed may start a chain.
+	  hand          a player's click: the aimed slot, then the READY or SETTING
+	                slots nearest it, up to the batch size, within
+	                batchReach of it. Each block placed may start a chain.
 	  chain         starts every READY slot within a radius of a block setting
 	  sweep         the ABILITY's band: places workable slots across a band of
 	                the site at every height
@@ -45,7 +45,8 @@ type Site = BuildSite.Site
 type Index = SiteIndex.Index
 
 export type HandStats = {
-	-- Reach from the player's root, in cells.
+	-- Reach from the player's root, in cells. The server checks the aimed
+	-- slot against it; the batch's reach grows from it.
 	grasp: number,
 	-- Blocks a click places, the aimed one included.
 	batch: number,
@@ -201,14 +202,24 @@ function SiteActions.chain(site: Site, index: Index, slot: number, radius: numbe
 	return started
 end
 
--- Returns how many blocks it placed, written to placed, and how many it started setting.
+-- How far from the aimed slot a click's batch looks, in cells: the
+-- player's grasp, plus half the batch. A batch takes the nearest slots, so
+-- this only matters where work is thin, and the thinnest a site's work gets
+-- is a single line, such as the top of a wall: there the batch - 1 nearest
+-- lie within batch / 2 cells either way. The search reads only the chunks
+-- within that radius, and stops once no nearer chunk is left.
+function SiteActions.batchReach(grasp: number, batch: number): number
+	return grasp + batch / 2
+end
+
+-- A click on slot: places it, then its batch, then rolls each block's chain.
+-- The server has already checked the click, aimed slot included, against
+-- the player's grasp. Returns how many blocks it placed, written to placed,
+-- and how many it started setting.
 function SiteActions.hand(
 	site: Site,
 	index: Index,
 	slot: number,
-	px: number,
-	py: number,
-	pz: number,
 	stats: HandStats,
 	causer: number,
 	random: () -> number,
@@ -222,9 +233,7 @@ function SiteActions.hand(
 
 	if stats.batch > 1 then
 		local cx, cy, cz = centre(index, slot)
-		-- Anything in the player's grasp is within twice the grasp of the aimed
-		-- slot. The fence keeps only what is in their grasp.
-		local n = SiteIndex.nearestFenced(index, cx, cy, cz, 2 * stats.grasp, px, py, pz, stats.grasp, function(s)
+		local n = SiteIndex.nearest(index, cx, cy, cz, SiteActions.batchReach(stats.grasp, stats.batch), function(s)
 			return BuildSite.canPlace(site, s, Cause.BATCH)
 		end, stats.batch - 1, found)
 		count = placeOnce(site, found, n, Cause.BATCH, causer, placed, count)
