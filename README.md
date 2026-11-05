@@ -43,9 +43,10 @@ Workspace attributes change it while it runs:
 - `TestSpeed`: 1 to 5, how many times faster than real time the site runs.
 - `PowerTool`: true gives everyone the Forge Hammer, as its game pass will. Swing it with F.
 - `Pets`: how many hearthlings each player brings (0 to 4), read when they join. They fly to the nearest work near their owner, lay it, and rest.
+- `AbilityPets`: how many rarer hearthlings each player brings. Every 20 seconds, one lays everything workable around its owner, as Unharvester's Cinderfall pets do.
 - `Cooldown`, `Grasp`, `Batch`, `SetTime`, `ChainChance`, `ChainRadius`, `PerfectChance`, `CrewWidth`, `CrewCooldown`: each overrides that stat for everyone.
 
-It's a sandbox, not the game. It has no meta, saves, eggs, mounts, parties or menus, and its pets are stand-ins. The cooldown shows as a bar rather than a ring, and its tick is a built-in Studio sound. At the fork, the Unharvester-based `BuildRenderer`, `PlaceController` and `SiteService` replace `src/client` and `src/server`, calling the same shared modules.
+It's a sandbox, not the game. It has no meta, saves, eggs, mounts, parties or menus, and its pets are stand-ins. Its tick is a built-in Studio sound. At the fork, the Unharvester-based `BuildRenderer`, `PlaceController` and `SiteService` replace `src/client` and `src/server`, calling the same shared modules.
 
 ## What's built
 

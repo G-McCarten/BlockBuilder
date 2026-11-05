@@ -28,6 +28,8 @@
 	  TestSpeed    1 to 5, how many times faster than real time the site runs
 	  Pets         how many pets (SkillTuning.pet) each player brings, drawn
 	               as stand-ins that ignore collision, read when they join
+	  AbilityPets  how many pets with a timed ability (SkillTuning.abilityPet)
+	               each player brings, read when they join
 	  Cooldown, Grasp, Batch, SetTime, ChainChance, ChainRadius,
 	  PerfectChance, CrewWidth, CrewCooldown
 	               override that stat for everyone, read whenever one changes
@@ -216,9 +218,11 @@ local function join(player: Player)
 	levels[player] = {}
 	SiteSession.join(session, player.UserId, stats(player))
 	pushStats(player)
-	local pets = workspace:GetAttribute("Pets")
-	for _ = 1, if typeof(pets) == "number" then math.clamp(math.floor(pets), 0, 4) else 0 do
-		SiteSession.addPet(session, player.UserId, SkillTuning.pet)
+	for attribute, petStats in { Pets = SkillTuning.pet, AbilityPets = SkillTuning.abilityPet } do
+		local count = workspace:GetAttribute(attribute)
+		for _ = 1, if typeof(count) == "number" then math.clamp(math.floor(count), 0, 4) else 0 do
+			SiteSession.addPet(session, player.UserId, petStats)
+		end
 	end
 	answers[player] = {}
 	currencyValue(player).Value = 0

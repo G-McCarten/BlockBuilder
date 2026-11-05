@@ -277,6 +277,10 @@ function FakeRoblox:index(proxy, key)
 	if key == "Position" and real:IsA("BasePart") then
 		return real.CFrame.Position
 	end
+	-- Layout is Roblox's to compute; Lune has none. Guis sit at the top left.
+	if key == "AbsolutePosition" and real:IsA("GuiBase2d") then
+		return roblox.Vector2.new(0, 0)
+	end
 	local value = real[key]
 	if type(value) == "function" then
 		return function(_, ...)

@@ -298,13 +298,18 @@ Test.case("bots work the site alongside players, sped up by TestSpeed", function
 end)
 
 Test.case("pets work for their owner and are drawn", function()
-	local world, player = boot({ Pets = 2, Difficulty = "None" })
+	local world, player = boot({ Pets = 2, AbilityPets = 1, Difficulty = "None" })
 	local folder = world.realGame:GetService("Workspace"):FindFirstChild("SitePets")
 	aimAt(world, player, 10, 0, 6)
-	for _ = 1, 20 * 60 do
+	local abilityUsed = false
+	for _ = 1, 25 * 60 do
 		world:step(1 / 60)
+		if string.find(hudText(world, player, "Announce"), "around you", 1, true) then
+			abilityUsed = true
+		end
 	end
-	Test.equal(#folder:GetChildren(), 2, "two pets drawn")
+	Test.equal(#folder:GetChildren(), 3, "three pets drawn")
+	Test.check(abilityUsed, "the ability pet's timed ability fired")
 	Test.check(embers(world, player) > 10, `the pets earned their owner {embers(world, player)}`)
 	Test.check(drawnCount(world) > 10, `and laid {drawnCount(world)}`)
 	Test.equal(#world.errors, 0, errorsOf(world))

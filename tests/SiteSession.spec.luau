@@ -241,6 +241,28 @@ Test.case("a pet works near its owner and pays them", function()
 	Test.equal(#session.pets, 0, "pets leave with their owner")
 end)
 
+Test.case("a pet with a timed ability lays everything workable around its owner", function()
+	local session = hutSession()
+	SiteSession.addPet(session, 1, {
+		speed = 8,
+		leash = 0,
+		reach = 0,
+		ring = 0,
+		setTime = 1,
+		rest = 100,
+		ability = { interval = 5, radius = 3 },
+	})
+	SiteSession.step(session, 4.9)
+	Test.equal(session.site.placedCount, 0, "nothing before the interval")
+	SiteSession.step(session, 0.2)
+	local placed = session.site.placedCount
+	Test.check(placed >= 9, `the ability laid {placed} around its owner`)
+	local events = SiteSession.takeEvents(session)
+	Test.equal(events[1].kind, "pet_ability", "announced")
+	Test.equal(events[1].amount, placed, "with its count")
+	Test.equal(session.workers[1].purse, placed, "paid to the owner")
+end)
+
 Test.case("finishing the site is announced once", function()
 	local bp = Sites.hut()
 	local session = SiteSession.new(bp, rules(), function()

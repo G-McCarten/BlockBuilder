@@ -26,6 +26,8 @@ globals:
     any: true
   NumberRange:
     any: true
+  UDim:
+    any: true
   UDim2:
     any: true
   TweenInfo:

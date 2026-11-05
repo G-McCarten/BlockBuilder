@@ -97,6 +97,9 @@ export type PetStats = {
 	setTime: number,
 	-- Seconds it rests after each job.
 	rest: number,
+	-- A timed ability, for pets that have one: every interval seconds the
+	-- pet lays every workable slot within radius of its owner.
+	ability: { interval: number, radius: number }?,
 }
 
 export type Rules = {
@@ -169,6 +172,7 @@ export type Pet = {
 	travelling: boolean,
 	timer: number,
 	target: number,
+	abilityTimer: number,
 }
 
 export type Session = {
@@ -449,6 +453,7 @@ function SiteSession.addPet(session: Session, userId: number, stats: PetStats): 
 		travelling = false,
 		timer = stats.rest,
 		target = 0,
+		abilityTimer = if stats.ability then stats.ability.interval else 0,
 	})
 	return id
 end
@@ -484,9 +489,30 @@ local function stepBands(session: Session, dt: number)
 	end
 end
 
+local abilityFound: { number } = {}
+
 local function stepPets(session: Session, dt: number)
 	local site, index, bp = session.site, session.index, session.blueprint
 	for _, pet in session.pets do
+		local ability = pet.stats.ability
+		local owner = session.workers[pet.owner]
+		if ability and owner then
+			pet.abilityTimer -= dt
+			if pet.abilityTimer <= 0 then
+				-- The timed ability: everything workable around the owner, at once.
+				pet.abilityTimer = ability.interval
+				local n = SiteIndex.within(index, owner.x, owner.y, owner.z, ability.radius, function(s)
+					return BuildSite.canPlace(site, s, Cause.PET)
+				end, abilityFound)
+				local count = 0
+				for i = 1, n do
+					if BuildSite.place(site, abilityFound[i], Cause.PET, pet.owner) then
+						count += 1
+					end
+				end
+				emit(session, { kind = "pet_ability", userId = pet.owner, amount = count })
+			end
+		end
 		pet.timer -= dt
 		if pet.timer <= 0 then
 			local stats = pet.stats
@@ -510,7 +536,6 @@ local function stepPets(session: Session, dt: number)
 					emit(session, { kind = "pet", userId = pet.owner, slot = t, amount = count })
 				end
 			else
-				local owner = session.workers[pet.owner]
 				local ox, oy, oz = pet.x, pet.y, pet.z
 				if owner then
 					ox, oy, oz = owner.x, owner.y, owner.z

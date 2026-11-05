@@ -150,6 +150,17 @@ Tuning.pet = table.freeze({
 	rest = 2,
 })
 
+-- A rarer pet with a timed ability, as Unharvester's Cinderfall pets have.
+Tuning.abilityPet = table.freeze({
+	speed = 8,
+	leash = 8,
+	reach = 1.5,
+	ring = 2.5,
+	setTime = 2,
+	rest = 2,
+	ability = table.freeze({ interval = 20, radius = 3 }),
+})
+
 function Tuning.price(node: Node, level: number): number
 	return math.floor(node.price * node.growth ^ level + 0.5)
 end

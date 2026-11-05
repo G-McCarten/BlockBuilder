@@ -620,6 +620,22 @@ cooldownFill.BackgroundColor3 = Color3.fromRGB(255, 205, 120)
 cooldownFill.BorderSizePixel = 0
 cooldownFill.Parent = cooldownBack
 
+-- The cooldown ring: a circle at the cursor that grows as the next click
+-- comes ready, and turns gold when it is.
+local ring = Instance.new("Frame")
+ring.Name = "CooldownRing"
+ring.AnchorPoint = Vector2.new(0.5, 0.5)
+ring.BackgroundTransparency = 1
+ring.Size = UDim2.fromOffset(26, 26)
+ring.Parent = gui
+local ringCorner = Instance.new("UICorner")
+ringCorner.CornerRadius = UDim.new(0.5, 0)
+ringCorner.Parent = ring
+local ringStroke = Instance.new("UIStroke")
+ringStroke.Thickness = 2
+ringStroke.Color = Color3.fromRGB(255, 205, 120)
+ringStroke.Parent = ring
+
 local crewButton = Instance.new("TextButton")
 crewButton.Name = "Crew"
 crewButton.AnchorPoint = Vector2.new(1, 1)
@@ -1053,6 +1069,8 @@ EventRemote.OnClientEvent:Connect(function(events)
 			say(`You found {Theme.PremiumCurrency}!`)
 		elseif kind == "ability" and e.userId == me then
 			say(`{Theme.Ability}!`)
+		elseif kind == "pet_ability" and e.userId == me then
+			say(`Your {Theme.Pet.one} laid {e.amount} {Theme.Block.many} around you!`)
 		elseif kind == "tool" and e.userId == me then
 			say(`{Theme.PowerTool}: {e.amount} {Theme.Block.many}!`)
 		elseif kind == "perfect" and e.userId == me then
@@ -1224,7 +1242,19 @@ RunService.RenderStepped:Connect(function(dt)
 	end
 
 	local cooldown = player:GetAttribute("Cooldown") or 0.35
-	cooldownFill.Size = UDim2.fromScale(math.clamp((now - lastClick) / cooldown, 0, 1), 1)
+	local ready = math.clamp((now - lastClick) / cooldown, 0, 1)
+	cooldownFill.Size = UDim2.fromScale(ready, 1)
+	if UserInputService.MouseEnabled then
+		local mouse = UserInputService:GetMouseLocation()
+		local inset = gui.AbsolutePosition
+		ring.Position = UDim2.fromOffset(mouse.X - inset.X, mouse.Y - inset.Y)
+		ring.Visible = true
+	else
+		ring.Visible = false
+	end
+	local size = 10 + 16 * ready
+	ring.Size = UDim2.fromOffset(size, size)
+	ringStroke.Color = if ready >= 1 then Color3.fromRGB(255, 225, 120) else Color3.fromRGB(150, 170, 200)
 	builtLabel.Text = string.format(
 		"%s: %s %d%%",
 		siteName(siteId),
