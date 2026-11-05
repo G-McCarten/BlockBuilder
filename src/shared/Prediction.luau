@@ -115,15 +115,15 @@ end
 function Prediction.receive(pred: Prediction, slot: number, progress: number, rate: number)
 	local p = pred.pending[slot]
 	if p then
-		if rate == 0 and progress >= 1 then
-			clear(pred, slot)
-		elseif not p.answered then
+		-- A placed state confirms the click. Anything else waits for the
+		-- answer, unless the answer was yes and the server has moved on since:
+		-- then its word stands.
+		local placed = rate == 0 and progress >= 1
+		if not placed and not p.answered then
 			p.truth = { progress, rate }
 			return
-		else
-			-- Answered yes, and the server has moved on since: its word stands.
-			clear(pred, slot)
 		end
+		clear(pred, slot)
 	end
 	set(pred, slot, progress, rate)
 end

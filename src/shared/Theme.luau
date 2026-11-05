@@ -28,6 +28,16 @@ return table.freeze({
 	StartPad = "First Stone",
 
 	Boss = { name = "the Rime", blurb = "A frost wraith that cracks exposed bricks loose." },
+	-- What the boss leaves about the site.
+	BossWorks = {
+		marker = "frost mark",
+		binding = "ice chain",
+		minion = "rimeling",
+		peace = "stillness",
+		smother = "numbed",
+	},
+	Hoist = "hoist",
+	Perfect = "Perfect!",
 	ServerEvent = "Aurora Night",
 	DailyReward = "The Warm Welcome",
 	Ability = "Sled Train",

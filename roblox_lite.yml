@@ -1,0 +1,40 @@
+# Luau plus the Roblox globals this repo's scripts use, for selene. Generated
+# Roblox definitions (selene generate-roblox-std) can replace it where the
+# network allows.
+base: luau
+name: roblox_lite
+globals:
+  game:
+    any: true
+  workspace:
+    any: true
+  script:
+    any: true
+  Instance:
+    any: true
+  Vector2:
+    any: true
+  Vector3:
+    any: true
+  CFrame:
+    any: true
+  Color3:
+    any: true
+  ColorSequence:
+    any: true
+  NumberSequence:
+    any: true
+  NumberRange:
+    any: true
+  UDim2:
+    any: true
+  TweenInfo:
+    any: true
+  Enum:
+    any: true
+  Random:
+    any: true
+  Ray:
+    any: true
+  task:
+    any: true

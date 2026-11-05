@@ -6,6 +6,66 @@
 			"Shared": {
 				"$path": "src/shared"
 			}
+		},
+		"ServerScriptService": {
+			"Server": {
+				"$path": "src/server"
+			}
+		},
+		"StarterPlayer": {
+			"StarterPlayerScripts": {
+				"Client": {
+					"$path": "src/client"
+				}
+			}
+		},
+		"Workspace": {
+			"Baseplate": {
+				"$className": "Part",
+				"$properties": {
+					"Anchored": true,
+					"Locked": true,
+					"Size": [
+						512,
+						16,
+						512
+					],
+					"Position": [
+						85,
+						-8,
+						66
+					],
+					"Material": "Snow",
+					"Color": [
+						0.92,
+						0.94,
+						0.97
+					]
+				}
+			},
+			"SpawnLocation": {
+				"$className": "SpawnLocation",
+				"$properties": {
+					"Anchored": true,
+					"Size": [
+						12,
+						1,
+						12
+					],
+					"Position": [
+						85,
+						0.5,
+						4
+					],
+					"Material": "Ice",
+					"Color": [
+						0.72,
+						0.85,
+						0.97
+					],
+					"Duration": 0
+				}
+			}
 		}
 	}
 }

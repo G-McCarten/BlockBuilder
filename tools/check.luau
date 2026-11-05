@@ -4,8 +4,8 @@
 
 	  lune run tools/check
 
-	Runs StyLua's format check, every test, and the stamp check of every
-	blueprint source, and exits non-zero if any of them fails.
+	Runs StyLua's format check, selene's lint, every test, and the stamp check
+	of every blueprint source, and exits non-zero if any of them fails.
 ]]
 
 local fs = require("@lune/fs")
@@ -26,6 +26,7 @@ local function run(label: string, program: string, args: { string })
 end
 
 run("format", "stylua", { "--check", "src", "tools", "tests" })
+run("lint", "selene", { "src", "tools", "tests" })
 run("tests", "lune", { "run", "tests/run" })
 for _, entry in fs.readDir("tools/blueprints") do
 	local name = string.match(entry, "^([%w_]+)%.luau$") or string.match(entry, "^([%w_]+)%.rbxmx?$")
