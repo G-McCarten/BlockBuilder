@@ -75,7 +75,8 @@ It's a sandbox, not the game. It has no meta, saves, eggs, mounts, parties or me
 | Prototype server and client | `src/server`, `src/client` | run under a Roblox stand-in in tests |
 | BotBrain: a bot that plays a site, for the sim and for testing alone in Studio | `src/shared/BotBrain.luau` | tested |
 | Run sim | `tools/sim/` | tested |
-| Stamp tool, from a script or a Studio model | `tools/stamp_blueprint.luau`, `tools/lib/ModelSource.luau` | tested |
+| Stamp tool, from a script or a Studio model: multi-cell parts, inherited kinds, stages | `tools/stamp_blueprint.luau`, `tools/lib/ModelSource.luau`, `docs/authoring.md` | tested; not yet tried on a real Studio export |
+| Content drafts: hearthlings and eggs, sled beasts, achievements, tasks, lore, news, The Warm Welcome | `src/shared/content/` | structure tested, numbers placeholders |
 | SiteList and KindLooks: the sites in order with their payouts, and each block kind's look | `src/shared/SiteList.luau`, `src/shared/KindLooks.luau` | tested, payouts provisional |
 | Blueprints: TestHut (508), WoodcuttersLodge (5,928), IceBridge (7,320), Watchtower (8,754), GreatHall (10,746) | `tools/blueprints/` | validated, sizes provisional |
 
@@ -121,6 +122,8 @@ Co-op reaches those ratios through `partyShare`: every teammate also earns the b
 - **Bots.** `BotBrain` plays the sim and the prototype's `BotPlayers`. Unharvester's `Bots` do the same job in its Studio tests; keep whichever fits the fork, and point the other at it.
 - **Payouts and counts.** `SiteList`'s payouts stand in for `TitheConfig`. `SiteSession.counts` is what `TaskService` and `AchievementService` would read.
 - **Hints.** `Hints` and `HintConfig` stand in for `FieldTutorial`.
+- **Studio models.** `ModelSource` has only read models that Lune built and serialized. Export one from Studio and stamp it before building a site that way.
+- **Content.** `src/shared/content/` drafts Phase 6's words as frozen data: `PetRoster` (PetConfig, EggConfig), `Mounts` (MountConfig), `Achievements` (AchievementConfig), `Tasks` (TaskConfig), `Lore` (LoreConfig), `News` (NewsConfig) and `DailyReward` (WatchConfig). Every number is a placeholder: port Unharvester's into these fields and resize the roster to its count per rarity. Goals count `SiteSession.counts` keys, plus `finished`, which the services must count per player when a site is finished.
 - **Type checking.** Nothing has been run through `luau-lsp`; selene lints it with a small Roblox standard (`roblox_lite.yml`). Record it all in the fork's baseline.
 
 ## Slots
@@ -181,7 +184,7 @@ lune run tools/sim/run -- --boss Hard --seeds 20
 lune run tools/sim/run -- --coop
 ```
 
-Stamp a blueprint after changing its source, or check the stamped file is current. The source is a script, `tools/blueprints/<Name>.luau`, or a Studio model exported as `tools/blueprints/<Name>.rbxm` or `.rbxmx`. In a model, every part is one block: a 3-stud cube snapped to the 3-stud grid, upright, turned only in quarter turns, with its kind in a `Kind` attribute or its name.
+Stamp a blueprint after changing its source, or check the stamped file is current. The source is a script, `tools/blueprints/<Name>.luau`, or a Studio model exported as `tools/blueprints/<Name>.rbxm` or `.rbxmx`. In a model, a part becomes one block for each 3-stud cell it covers: its size a whole number of cells, its faces on the 3-stud grid, upright and turned only in quarter turns. Its kind is its `Kind` attribute, else the nearest Model's or Folder's, else its name. A `Stage` number attribute orders the things in one group, such as a roof after its walls. [`docs/authoring.md`](docs/authoring.md) walks through building, exporting and checking a site in Studio.
 
 ```bash
 lune run tools/stamp_blueprint WoodcuttersLodge
