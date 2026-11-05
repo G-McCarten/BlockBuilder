@@ -24,6 +24,8 @@ function FakeGroup.new(game)
 	local group = setmetatable({}, FakeGroup)
 	group.game = game
 	group.server = FakeRoblox.new(game)
+	-- Every world in the group, so an attribute set in one is heard in all.
+	group.server.peers = { group.server }
 	group.clients = {}
 	return group
 end
@@ -39,6 +41,8 @@ function FakeGroup:addClient(userId: number)
 	local realPlayer = self.server.reals[serverPlayer]
 	local realCharacter = self.server.reals[serverPlayer.Character]
 	local client = FakeRoblox.new(self.game)
+	client.peers = self.server.peers
+	table.insert(client.peers, client)
 	client.time = self.server.time
 	local localPlayer = client:wrap(realPlayer)
 	client.extras[localPlayer] = { UserId = userId, Name = realPlayer.Name, Character = client:wrap(realCharacter) }

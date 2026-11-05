@@ -147,6 +147,13 @@ local function setSetting(name: string, value: any)
 	player:SetAttribute(`Setting{name}`, value)
 end
 
+-- The local player's attributes, kept up by AttributeChanged so a frame
+-- reads a table instead of the player: levels, stats and passes.
+local mine: { [string]: any } = player:GetAttributes()
+player.AttributeChanged:Connect(function(name: string)
+	mine[name] = player:GetAttribute(name)
+end)
+
 -- The device the player last used, so hints name its buttons.
 local device: Hints.Device = if UserInputService.TouchEnabled and not UserInputService.MouseEnabled
 	then "touch"
@@ -386,13 +393,29 @@ end
 local chunkFar: { [number]: boolean } = {}
 local farDirty: { [number]: boolean } = {}
 local collisionDirty: { [number]: boolean } = {}
+-- Whether each slot stood when its chunk's boxes were built or it was last
+-- drawn. Boxes hold only standing blocks, so they're rebuilt only when a
+-- slot starts or stops standing, not while it sets.
+local stood: { [number]: boolean } = {}
+
+local function stands(s: number): boolean
+	local r = mirror.rate[s]
+	return r < 0 or (r == 0 and mirror.progress[s] >= 1)
+end
 
 local function redraw(s: number)
 	local c = index.chunkOf[s]
-	collisionDirty[c] = true
+	local now = stands(s)
+	local changed = now ~= (stood[s] == true)
+	if changed then
+		stood[s] = now or nil
+		collisionDirty[c] = true
+	end
 	if chunkFar[c] then
 		-- Far: the chunk's merged boxes will be rebuilt, on a budget.
-		farDirty[c] = true
+		if changed then
+			farDirty[c] = true
+		end
 		local part = blocks[s]
 		if part then
 			settingFrom[s] = nil
@@ -452,12 +475,49 @@ collisionFolder.Parent = workspace
 local collisionParts: { [number]: { BasePart } } = {}
 -- Scratch for CollisionBoxes.build, which writes six numbers a box.
 local boxes: { number } = {}
+-- Box parts out of use, kept for the next rebuild instead of destroyed.
+local spareCollision: { BasePart } = {}
+local spareFar: { BasePart } = {}
+-- The box each box part shows, so a rebuild writes only the boxes that moved.
+local shownBox: { [BasePart]: { number } } = {}
+
+-- Fits part to box b of the scratch, unless it shows that box already.
+local function fitBox(part: BasePart, b: number)
+	local o = b * 6
+	local x0, y0, z0, x1, y1, z1 = boxes[o + 1], boxes[o + 2], boxes[o + 3], boxes[o + 4], boxes[o + 5], boxes[o + 6]
+	local shown = shownBox[part]
+	if shown == nil then
+		shown = {}
+		shownBox[part] = shown
+	elseif
+		shown[1] == x0
+		and shown[2] == y0
+		and shown[3] == z0
+		and shown[4] == x1
+		and shown[5] == y1
+		and shown[6] == z1
+	then
+		return
+	end
+	shown[1], shown[2], shown[3], shown[4], shown[5], shown[6] = x0, y0, z0, x1, y1, z1
+	part.Size = Vector3.new(x1 - x0, y1 - y0, z1 - z0) * STUDS
+	part.CFrame = CFrame.new(ORIGIN + Vector3.new(x0 + x1, y0 + y1, z0 + z1) * (STUDS / 2))
+end
+
+-- Records whether each of chunk c's slots stands, as its boxes are built.
+local function noteStood(c: number)
+	for i = index.slotStart[c], index.slotStart[c + 1] - 1 do
+		local s = index.slotList[i]
+		stood[s] = stands(s) or nil
+	end
+end
 
 local function clearCollision(c: number)
 	local list = collisionParts[c]
 	if list then
 		for _, part in list do
-			part:Destroy()
+			part.Parent = nil
+			table.insert(spareCollision, part)
 		end
 		collisionParts[c] = nil
 	end
@@ -465,27 +525,44 @@ local function clearCollision(c: number)
 end
 
 -- A near chunk's invisible collision: its standing blocks merged into boxes.
+-- The chunk keeps its parts, so a rebuild moves only the boxes that changed.
 local function buildCollision(c: number)
-	clearCollision(c)
-	local list = {}
+	noteStood(c)
+	local list = collisionParts[c] or {}
 	local n = CollisionBoxes.build(index, mirror, c, boxes)
-	for b = 0, n - 1 do
-		local o = b * 6
-		local x0, y0, z0, x1, y1, z1 =
-			boxes[o + 1], boxes[o + 2], boxes[o + 3], boxes[o + 4], boxes[o + 5], boxes[o + 6]
-		local part = Instance.new("Part")
-		part.Anchored = true
-		part.CanQuery = false
-		part.CanTouch = false
-		part.Transparency = 1
-		part.Size = Vector3.new(x1 - x0, y1 - y0, z1 - z0) * STUDS
-		part.CFrame = CFrame.new(ORIGIN + Vector3.new(x0 + x1, y0 + y1, z0 + z1) * (STUDS / 2))
-		part.Parent = collisionFolder
-		table.insert(list, part)
+	for b = 1, n do
+		local part = list[b]
+		if part == nil then
+			part = table.remove(spareCollision)
+			if part == nil then
+				part = Instance.new("Part")
+				part.Anchored = true
+				part.CanQuery = false
+				part.CanTouch = false
+				part.Transparency = 1
+			end
+			list[b] = part
+			fitBox(part, b - 1)
+			part.Parent = collisionFolder
+		else
+			fitBox(part, b - 1)
+		end
+	end
+	for b = #list, n + 1, -1 do
+		local part = list[b]
+		list[b] = nil
+		part.Parent = nil
+		table.insert(spareCollision, part)
 	end
 	collisionParts[c] = list
+	collisionDirty[c] = nil
 end
 local farParts: { [number]: { BasePart } } = {}
+-- The look each far box part wears, so a reused part is repainted only when
+-- its kind's look differs.
+local farLookOf: { [BasePart]: { any } } = {}
+-- Scratch for buildFar: the chunk's old parts by look, to reuse.
+local farReuse: { [{ any }]: { BasePart } } = {}
 local zeroRate = setmetatable({}, {
 	__index = function()
 		return 0
@@ -496,20 +573,34 @@ local function clearFar(c: number)
 	local list = farParts[c]
 	if list then
 		for _, part in list do
-			part:Destroy()
+			part.Parent = nil
+			table.insert(spareFar, part)
 		end
 		farParts[c] = nil
 	end
 end
 
--- The chunk's standing blocks as merged boxes, one set per kind.
+-- The chunk's standing blocks as merged boxes, one set per kind. The
+-- chunk's old parts are reused for the same look before any spare.
 local function buildFar(c: number)
-	clearFar(c)
+	local old = farParts[c]
+	if old then
+		for _, part in old do
+			local look = farLookOf[part]
+			local list = farReuse[look]
+			if list == nil then
+				list = {}
+				farReuse[look] = list
+			end
+			table.insert(list, part)
+		end
+	end
 	local byKind: { [number]: { [number]: number } } = {}
 	for i = index.slotStart[c], index.slotStart[c + 1] - 1 do
 		local s = index.slotList[i]
-		local state = BuildSite.state(mirror, s)
-		if state == State.PLACED or state == State.UNDOING then
+		local standing = stands(s)
+		stood[s] = standing or nil
+		if standing then
 			local kind = bp.kind[s]
 			local set = byKind[kind]
 			if set == nil then
@@ -519,27 +610,44 @@ local function buildFar(c: number)
 			set[s] = 1
 		end
 	end
-	local list = {}
+	local list = old or {}
+	table.clear(list)
 	for kind, progress in byKind do
 		local look = KIND_LOOK[bp.palette[kind]] or FALLBACK_LOOK
+		local reuse = farReuse[look]
 		local n = CollisionBoxes.build(index, { progress = progress, rate = zeroRate }, c, boxes)
 		for b = 0, n - 1 do
-			local o = b * 6
-			local x0, y0, z0, x1, y1, z1 =
-				boxes[o + 1], boxes[o + 2], boxes[o + 3], boxes[o + 4], boxes[o + 5], boxes[o + 6]
-			local part = Instance.new("Part")
-			part.Anchored = true
-			part.CanQuery = false
-			part.CanTouch = false
-			part.TopSurface = Enum.SurfaceType.Smooth
-			part.BottomSurface = Enum.SurfaceType.Smooth
-			part.Color = look[1]
-			part.Material = look[2]
-			part.Size = Vector3.new(x1 - x0, y1 - y0, z1 - z0) * STUDS
-			part.CFrame = CFrame.new(ORIGIN + Vector3.new(x0 + x1, y0 + y1, z0 + z1) * (STUDS / 2))
-			part.Parent = farFolder
+			local part = reuse and table.remove(reuse)
+			if part == nil then
+				part = table.remove(spareFar)
+				if part == nil then
+					part = Instance.new("Part")
+					part.Anchored = true
+					part.CanQuery = false
+					part.CanTouch = false
+					part.TopSurface = Enum.SurfaceType.Smooth
+					part.BottomSurface = Enum.SurfaceType.Smooth
+				end
+				if farLookOf[part] ~= look then
+					farLookOf[part] = look
+					part.Color = look[1]
+					part.Material = look[2]
+				end
+				fitBox(part, b)
+				part.Parent = farFolder
+			else
+				fitBox(part, b)
+			end
 			table.insert(list, part)
 		end
+	end
+	-- Old parts left over go spare.
+	for look, parts in farReuse do
+		for _, part in parts do
+			part.Parent = nil
+			table.insert(spareFar, part)
+		end
+		farReuse[look] = nil
 	end
 	farParts[c] = list
 	farDirty[c] = nil
@@ -828,6 +936,7 @@ local function clearAll()
 	table.clear(chunkFar)
 	table.clear(farDirty)
 	table.clear(collisionDirty)
+	table.clear(stood)
 end
 
 local timelapse: { order: { number }, started: number, shown: number }? = nil
@@ -1231,7 +1340,7 @@ do
 	local function refreshShop()
 		local have = purse()
 		for i, node in SkillTuning.nodes do
-			local level = player:GetAttribute(LEVEL_NAMES[i]) or 0
+			local level = mine[LEVEL_NAMES[i]] or 0
 			local price = if level < node.max then SkillTuning.price(node, level) else math.huge
 			local afford = have >= price
 			if level ~= shownLevel[i] or afford ~= shownAfford[i] then
@@ -1245,8 +1354,8 @@ do
 				b.BackgroundColor3 = if afford then AFFORD_COLOR else PANEL_COLOR
 			end
 		end
-		crewButton.Visible = (player:GetAttribute(ABILITY_LEVEL) or 0) >= 1
-		toolButton.Visible = player:GetAttribute("HasTool") == true
+		crewButton.Visible = (mine[ABILITY_LEVEL] or 0) >= 1
+		toolButton.Visible = mine.HasTool == true
 	end
 
 	-- One context, filled in place each time a hint is picked.
@@ -1266,7 +1375,7 @@ do
 	local function pickHint(now: number)
 		local cheapest, bought = math.huge, 0
 		for i, node in SkillTuning.nodes do
-			local level = player:GetAttribute(LEVEL_NAMES[i]) or 0
+			local level = mine[LEVEL_NAMES[i]] or 0
 			bought += level
 			if level < node.max then
 				cheapest = math.min(cheapest, SkillTuning.price(node, level))
@@ -1283,7 +1392,7 @@ do
 		context.markers = if view then #view.markers else 0
 		context.bound = view ~= nil and #view.bindings > 0
 		context.peace = view ~= nil and view.peace ~= nil
-		context.crewUnlocked = (player:GetAttribute(ABILITY_LEVEL) or 0) >= 1
+		context.crewUnlocked = (mine[ABILITY_LEVEL] or 0) >= 1
 		local hint = Hints.pick(context, hintsShown)
 		if hint then
 			hintsShown[hint] = true
@@ -1389,9 +1498,9 @@ do
 		local ray = aimRay()
 		local ox, oy, oz = toCells(ray.Origin)
 		local d = ray.Direction.Unit
-		local grasp = player:GetAttribute("Grasp") or SiteConfig.BASE_GRASP_CELLS
+		local grasp = mine.Grasp or SiteConfig.BASE_GRASP_CELLS
 		local slot = SiteRay.cast(bp, mirror, ox, oy, oz, d.X, d.Y, d.Z, 120, rx, ry, rz, grasp)
-		if slot == nil and (player:GetAttribute("Level_autoAim") or 0) >= 1 then
+		if slot == nil and (mine.Level_autoAim or 0) >= 1 then
 			-- Auto-aim: the nearest slot a click could lay.
 			local n = SiteIndex.nearest(index, rx, ry, rz, grasp, placeableByHand, 1, found)
 			if n > 0 then
@@ -1404,7 +1513,7 @@ do
 	-- Places slot, the aimed one, if the cooldown allows.
 	function tryPlace(slot: number?)
 		local now = os.clock()
-		local cooldown = player:GetAttribute("Cooldown") or 0.35
+		local cooldown = mine.Cooldown or 0.35
 		if slot == nil or now - lastClick < cooldown then
 			return
 		end
@@ -1938,7 +2047,7 @@ RunService.RenderStepped:Connect(function(dt)
 		tryPlace(aimed)
 	end
 
-	local cooldown = player:GetAttribute("Cooldown") or 0.35
+	local cooldown = mine.Cooldown or 0.35
 	drawHud(now, math.clamp((now - lastClick) / cooldown, 0, 1))
 
 	-- A block that lands where the character stands moves them clear at once;

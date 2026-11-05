@@ -538,7 +538,7 @@ Test.case(
 	function()
 		local world, player = boot({ Difficulty = "None", PowerTool = true }, "phone")
 		-- Shows the crew's button, as buying its skill would.
-		realOf(world, player):SetAttribute("Level_crew", 1)
+		player:SetAttribute("Level_crew", 1)
 		steps(world, 20)
 		local hud = hudOf(world, player)
 		local function check(screen)
@@ -616,8 +616,8 @@ Test.case("a click or tap on any button never lays a block", function()
 		local kind = if touch then Enum.UserInputType.Touch else Enum.UserInputType.MouseButton1
 		-- Shows the crew's and tool's buttons; the server grants neither, so
 		-- their taps lay nothing themselves.
-		realOf(world, player):SetAttribute("Level_crew", 1)
-		realOf(world, player):SetAttribute("HasTool", true)
+		player:SetAttribute("Level_crew", 1)
+		player:SetAttribute("HasTool", true)
 		steps(world, 20)
 		aimAt(world, player, 10, 0, 4)
 		local buttons = hudButtons(world, player)

@@ -226,10 +226,16 @@ function METHODS.GetService(world, proxy, name)
 end
 
 function METHODS.SetAttribute(world, proxy, name, value)
-	world.reals[proxy]:SetAttribute(name, world:unwrap(value))
-	local signal = world.signals[proxy].AttributeChanged
-	if signal then
-		signal:Fire(name)
+	local real = world.reals[proxy]
+	real:SetAttribute(name, world:unwrap(value))
+	-- Every world that sees the instance hears of it, as replication tells
+	-- each client in Roblox. FakeGroup lists a group's worlds in peers.
+	for _, peer in world.peers or { world } do
+		local seen = peer.proxies[real]
+		local signal = seen and peer.signals[seen].AttributeChanged
+		if signal then
+			signal:Fire(name)
+		end
 	end
 end
 
