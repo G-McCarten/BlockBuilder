@@ -57,7 +57,7 @@ export type Tuning = {
 	shooedFor: number,
 	markers: { interval: number, fuse: number, radius: number, breakRadius: number, bounty: number }?,
 	stubborn: { at: number, width: number }?,
-	peace: { radius: number }?,
+	peace: { radius: number, every: number? }?,
 	binding: { at: number, cap: number, breakRadius: number, bounty: number }?,
 	minions: { count: number, speed: number, interval: number, radius: number }?,
 	collapse: { at: { number }, size: number, budget: number }?,
@@ -85,6 +85,7 @@ export type Brain = {
 	mendTimer: number,
 	shooedUntil: number,
 	peaceOn: boolean,
+	peaceReadyAt: number,
 	peaceX: number,
 	peaceZ: number,
 	markers: { Marker },
@@ -115,6 +116,7 @@ type SessionLike = {
 	clock: number,
 	events: { any },
 	random: () -> number,
+	finished: boolean?,
 }
 
 function BossBrain.new(tuning: Tuning): Brain
@@ -134,6 +136,7 @@ function BossBrain.new(tuning: Tuning): Brain
 		mendTimer = tuning.mendInterval,
 		shooedUntil = -math.huge,
 		peaceOn = false,
+		peaceReadyAt = 0,
 		peaceX = 0,
 		peaceZ = 0,
 		markers = {},
@@ -202,6 +205,12 @@ local function setPeace(brain: Brain, session: SessionLike, on: boolean)
 		return
 	end
 	if on then
+		-- At most one circle every peace.every seconds, so the errand comes
+		-- as often on a long site as on a compact one.
+		if session.clock < brain.peaceReadyAt then
+			return
+		end
+		brain.peaceReadyAt = session.clock + (peace.every or 0)
 		brain.peaceX, brain.peaceZ = brain.x, brain.z
 	end
 	BossEffects.shieldCircle(session.site, session.index, brain.peaceX, brain.peaceZ, peace.radius, Shield.BLOCKED, on)
@@ -422,6 +431,12 @@ function BossBrain.step(brain: Brain, session: SessionLike, dt: number)
 	if brain.relented then
 		return
 	end
+	-- A finished site is the players': the boss gives up at once, even from
+	-- a final stand, and undoes nothing more.
+	if session.finished then
+		relent(brain, session)
+		return
+	end
 	local site = session.site
 	local tuning = brain.tuning
 	local percent = BuildSite.percent(site)
@@ -499,6 +514,9 @@ function BossBrain.step(brain: Brain, session: SessionLike, dt: number)
 				brain.arrived = true
 				setPeace(brain, session, true)
 			end
+		elseif not brain.peaceOn and tuning.peace and session.clock >= brain.peaceReadyAt then
+			-- It arrived too soon after its last circle: it raises one once it may.
+			setPeace(brain, session, true)
 		end
 		brain.mendTimer -= dt
 		if brain.mendTimer <= 0 then

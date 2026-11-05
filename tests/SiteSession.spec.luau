@@ -308,6 +308,47 @@ Test.case("finishing the site is announced once", function()
 	Test.equal(session.workers[1].purse, bp.count, "every block paid")
 end)
 
+Test.case("a finished site stays finished: the boss relents and nothing more works it", function()
+	local BossConfig = require("../src/shared/BossConfig")
+	-- Nightmare's final stand, minions and collapses, without the holds that
+	-- would need breaking first.
+	local tuning = table.clone(BossConfig.Nightmare) :: any
+	tuning.peace, tuning.binding = nil, nil
+	local session = hutSession()
+	SiteSession.setBoss(session, tuning)
+	local site = session.site
+	local boss = session.boss :: any
+	-- A pass of every READY slot a step, until the site is finished.
+	local function layAll()
+		for s = 1, site.count do
+			if BuildSite.state(site, s) == State.READY then
+				BuildSite.place(site, s, BuildSite.Cause.HAND, 1)
+			end
+		end
+	end
+	local steps = 0
+	while not session.finished and steps < 2000 do
+		layAll()
+		if not session.finished then
+			SiteSession.step(session, 0.1)
+		end
+		steps += 1
+	end
+	Test.check(session.finished, `finished after {steps} steps`)
+	Test.check(boss.risen and not boss.relented, "the boss was still at work at the finish")
+	SiteSession.takeEvents(session)
+	for _ = 1, 300 do
+		SiteSession.step(session, 0.1)
+	end
+	Test.check(boss.relented, "the boss relented")
+	Test.equal(site.placedCount, site.count, "every block still stands 30 seconds on")
+	local kinds = {}
+	for _, e in SiteSession.takeEvents(session) do
+		kinds[e.kind] = true
+	end
+	Test.check(kinds.boss_relent, "the relent was announced")
+end)
+
 Test.case("a site finished by laying an undone block again still finishes", function()
 	local bp = Sites.hut()
 	local session = SiteSession.new(bp, rules(), function()

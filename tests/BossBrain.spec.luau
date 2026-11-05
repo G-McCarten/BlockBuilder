@@ -184,6 +184,39 @@ Test.case("hard: stubborn band, peace circle, and bindings that cap the site", f
 	Test.check(not session.site.bound, "breaking all three lifts it")
 end)
 
+Test.case("hard: a peace circle comes at most once every peace.every seconds", function()
+	local hard = BossConfig.Hard
+	local every = hard.peace.every :: number
+	Test.check(every > 0, "Hard spaces its circles")
+	local session = lodgeWithBoss(hard, 7)
+	buildTo(session, hard.riseAt + 0.05)
+	SiteSession.takeEvents(session)
+	local boss = session.boss :: BossBrain.Brain
+	local raised: { number } = {}
+	-- The player shoos every circle the moment it goes up, so only the
+	-- spacing holds the next one back.
+	while session.clock < 4 * every do
+		SiteSession.move(session, 1, -40, 1, -40)
+		SiteSession.step(session, 0.25)
+		for _, e in SiteSession.takeEvents(session) do
+			if e.kind == "peace_on" then
+				table.insert(raised, session.clock)
+			end
+		end
+		if boss.peaceOn then
+			SiteSession.move(session, 1, boss.x, boss.y, boss.z)
+			SiteSession.step(session, 0.1)
+		end
+	end
+	Test.check(#raised >= 2, `{#raised} circles in {4 * every} seconds`)
+	for i = 2, #raised do
+		Test.check(
+			raised[i] - raised[i - 1] >= every - 0.5,
+			`circle {i} came {raised[i] - raised[i - 1]} s after the last`
+		)
+	end
+end)
+
 Test.case("nightmare: strikes smother, and a final stand takes shoos to end", function()
 	local session = lodgeWithBoss(BossConfig.Nightmare, 6)
 	buildTo(session, 0.3)

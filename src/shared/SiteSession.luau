@@ -560,8 +560,14 @@ function SiteSession.step(session: Session, dt: number)
 	session.clock += dt
 	local site = session.site
 	BuildSite.step(site, dt)
-	stepBands(session, dt)
-	stepPets(session, dt)
+	-- Once the site is finished, nothing more works it: bands and pets stop,
+	-- and the boss relents.
+	if not session.finished then
+		stepBands(session, dt)
+	end
+	if not session.finished then
+		stepPets(session, dt)
+	end
 	local boss = session.boss
 	if boss then
 		BossBrain.step(boss, session, dt)

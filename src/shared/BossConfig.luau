@@ -23,6 +23,10 @@
 	    from deciding a run.
 	  - Minions reach 3 cells: at 4, on the smallest test site, they undo
 	    about as fast as a fresh player lays and the run stalls.
+	  - A peace circle comes at most once a minute. The boss works the spot
+	    farthest from the players, so on the long Ice Bridge every circle was
+	    a walk of 50 cells; one at every stop made Hard 65% slower there
+	    than no boss, against 15 to 20% on the other sites.
 ]]
 
 local Normal = {
@@ -41,7 +45,7 @@ local Normal = {
 local Hard = table.clone(Normal)
 Hard.mendCount = 6
 Hard.stubborn = { at = 0.6, width = 2 }
-Hard.peace = { radius = 5 }
+Hard.peace = { radius = 5, every = 60 }
 Hard.binding = { at = 0.55, cap = 0.8, breakRadius = 2.5, bounty = 40 }
 
 local Nightmare = table.clone(Hard)
