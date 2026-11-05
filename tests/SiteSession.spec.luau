@@ -153,6 +153,20 @@ Test.case("teammates earn the party share of each first placement", function()
 	Test.equal(session.tally[2], 0, "the tally stays with the placer")
 end)
 
+Test.case("a player joining a run in progress starts at the average earned", function()
+	local session, bp = hutSession({ partyShare = 0 })
+	SiteSession.join(session, 2, baseStats())
+	SiteSession.move(session, 2, 5.5, 1, 5.5)
+	session.workers[1].stats.yield = 10
+	SiteSession.request(session, 1, Blueprint.slotAt(bp, 5, 0, 5) :: number)
+	SiteSession.request(session, 2, Blueprint.slotAt(bp, 6, 0, 5) :: number)
+	-- Player 1 spends some; spending doesn't lower what they earned.
+	session.workers[1].purse -= 8
+	SiteSession.join(session, 3, baseStats())
+	Test.equal(session.workers[3].purse, (10 + 1) / 2, "the average of 10 and 1 earned")
+	Test.equal(session.workers[3].earned, 5.5, "counted as earned, for the next to join")
+end)
+
 Test.case("shares follow blocks placed, and survive leaving", function()
 	local session, bp = hutSession()
 	SiteSession.join(session, 2, baseStats())

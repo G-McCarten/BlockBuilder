@@ -98,7 +98,15 @@ export type Brain = {
 }
 
 -- The parts of a SiteSession the brain uses.
-type Worker = { userId: number, x: number, y: number, z: number, purse: number, smotheredUntil: number }
+type Worker = {
+	userId: number,
+	x: number,
+	y: number,
+	z: number,
+	purse: number,
+	earned: number,
+	smotheredUntil: number,
+}
 type SessionLike = {
 	site: BuildSite.Site,
 	index: any,
@@ -313,6 +321,7 @@ local function stepMarkers(brain: Brain, session: SessionLike, dt: number, activ
 		if by then
 			table.remove(brain.markers, i)
 			by.purse += markers.bounty
+			by.earned += markers.bounty
 			emit(session, "marker_broken", { userId = by.userId, amount = markers.bounty, x = m.x, y = m.y, z = m.z })
 		elseif session.clock >= m.fuseEnd then
 			table.remove(brain.markers, i)
@@ -365,6 +374,7 @@ local function stepBindings(brain: Brain, session: SessionLike, percent: number)
 				if by then
 					b.broken = true
 					by.purse += binding.bounty
+					by.earned += binding.bounty
 					emit(session, "binding_broken", { userId = by.userId, amount = binding.bounty, x = b.x, z = b.z })
 				else
 					standing += 1

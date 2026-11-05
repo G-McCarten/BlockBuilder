@@ -140,6 +140,8 @@ export type Worker = {
 	toolAt: number,
 	smotheredUntil: number,
 	purse: number,
+	-- Everything the player has earned on this site, spent or not.
+	earned: number,
 	firstThisStep: boolean,
 }
 
@@ -248,12 +250,14 @@ function SiteSession.new(blueprint: any, rules: Rules?, random: (() -> number)?)
 				emit(session, { kind = "perfect", userId = userId, slot = slot })
 			end
 			worker.purse += pay
+			worker.earned += pay
 			worker.firstThisStep = true
 			local share = session.rules.partyShare
 			if share > 0 then
 				for otherId, other in session.workers do
 					if otherId ~= userId then
 						other.purse += base * share
+						other.earned += base * share
 					end
 				end
 			end
@@ -267,7 +271,18 @@ function SiteSession.setBoss(session: Session, tuning: BossBrain.Tuning)
 	session.boss = BossBrain.new(tuning)
 end
 
+-- Starts a player working the site. A player who joins a run in progress
+-- starts with the average of what the others have earned, so they can buy
+-- their way up the tree to the rest of the party.
 function SiteSession.join(session: Session, userId: number, stats: Stats, tool: ToolStats?)
+	local total, others = 0, 0
+	for otherId, other in session.workers do
+		if otherId ~= userId then
+			total += other.earned
+			others += 1
+		end
+	end
+	local start = if others > 0 then total / others else 0
 	session.workers[userId] = {
 		userId = userId,
 		stats = stats,
@@ -281,7 +296,8 @@ function SiteSession.join(session: Session, userId: number, stats: Stats, tool: 
 		abilityAt = session.clock,
 		toolAt = session.clock,
 		smotheredUntil = -math.huge,
-		purse = 0,
+		purse = start,
+		earned = start,
 		firstThisStep = false,
 	}
 	session.tally[userId] = session.tally[userId] or 0
@@ -568,6 +584,7 @@ function SiteSession.pay(session: Session, userId: number, amount: number)
 	local worker = session.workers[userId]
 	if worker then
 		worker.purse += amount
+		worker.earned += amount
 	end
 end
 
