@@ -86,6 +86,9 @@ export type Result = {
 	-- its minions undoing the exposed blocks nearest them.
 	undone: number,
 	undoneBy: { [string]: number },
+	-- Minutes the boss rose and relented at, if it did.
+	roseAt: number?,
+	relentedAt: number?,
 	-- The site's payout, each player's share of it (SiteSession.shares), and
 	-- what that share pays per minute played. An unfinished site pays nothing.
 	payout: number,
@@ -97,9 +100,11 @@ export type Result = {
 export type MinuteSummary = {
 	-- Runs that reached this minute.
 	runs: number,
-	-- The mean of those runs' median blocks per click.
+	-- The mean of those runs' median blocks a click placed itself.
 	perClick: number,
-	-- Blocks clicks placed, with the chains they set off, per click.
+	-- Blocks clicks placed themselves per click, and with the chains they
+	-- set off, over all those runs' clicks.
+	meanPerClick: number,
 	withChains: number,
 	-- Placed blocks the boss undid, per minute.
 	undone: number,
@@ -120,10 +125,11 @@ export type Summary = {
 	-- who bought it, and the share of all players who did.
 	boughtAt: { [string]: { { minute: number, share: number } } },
 	-- Placed blocks the boss undid per run, in all and by how, and per minute
-	-- over whole runs.
+	-- over whole runs and over the minutes from its rise to its relenting.
 	undone: number,
 	undoneBy: { [string]: number },
 	undoneRate: number,
+	undoneWhileUp: number,
 	-- What each player's share of the payout pays per minute played: the
 	-- mean over every player of every run, and the lowest and highest.
 	pay: number,
@@ -209,6 +215,8 @@ function Sim.run(options: Options): Result
 		boughtAt = {},
 		undone = 0,
 		undoneBy = { nearest = 0, marker = 0, collapse = 0 },
+		roseAt = nil,
+		relentedAt = nil,
 		payout = options.payout or payoutOf(bp),
 		shares = {},
 		payPerMinute = {},
@@ -288,6 +296,10 @@ function Sim.run(options: Options): Result
 				result.undoneBy.marker += e.amount or 0
 			elseif e.kind == "collapse" then
 				result.undoneBy.collapse += e.amount or 0
+			elseif e.kind == "boss_rise" then
+				result.roseAt = session.clock / 60
+			elseif e.kind == "boss_relent" then
+				result.relentedAt = session.clock / 60
 			end
 		end
 		SiteSession.takeDelta(session)
@@ -347,6 +359,7 @@ function Sim.summarise(results: { Result }): Summary
 		undone = 0,
 		undoneBy = {},
 		undoneRate = 0,
+		undoneWhileUp = 0,
 		pay = 0,
 		payLow = 0,
 		payHigh = 0,
@@ -360,6 +373,7 @@ function Sim.summarise(results: { Result }): Summary
 		perClick: number,
 		clickRuns: number,
 		clicks: number,
+		handPlaced: number,
 		clickPlaced: number,
 		undone: number,
 		seconds: number,
@@ -370,6 +384,7 @@ function Sim.summarise(results: { Result }): Summary
 	local rows: { Row } = {}
 	local bought: { [string]: { { sum: number, count: number } } } = {}
 	local players, totalMinutes = 0, 0
+	local upMinutes, upUndone = 0, 0
 	local pays: { number } = {}
 
 	for _, r in results do
@@ -380,6 +395,11 @@ function Sim.summarise(results: { Result }): Summary
 		summary.best = math.min(summary.best, r.minutes)
 		summary.worst = math.max(summary.worst, r.minutes)
 		summary.undone += r.undone / runs
+		if r.roseAt then
+			local up = (r.relentedAt or r.minutes) - r.roseAt
+			upMinutes += up
+			upUndone += r.undone
+		end
 		for how, n in r.undoneBy do
 			summary.undoneBy[how] = (summary.undoneBy[how] or 0) + n / runs
 		end
@@ -416,6 +436,7 @@ function Sim.summarise(results: { Result }): Summary
 					perClick = 0,
 					clickRuns = 0,
 					clicks = 0,
+					handPlaced = 0,
 					clickPlaced = 0,
 					undone = 0,
 					seconds = 0,
@@ -432,6 +453,7 @@ function Sim.summarise(results: { Result }): Summary
 			end
 			local placed = minute.placed
 			row.clicks += minute.clicks
+			row.handPlaced += (placed.HAND or 0) + (placed.BATCH or 0)
 			row.clickPlaced += (placed.HAND or 0) + (placed.BATCH or 0) + (placed.CHAIN or 0)
 			row.undone += minute.undone
 			row.seconds += minute.seconds
@@ -445,6 +467,7 @@ function Sim.summarise(results: { Result }): Summary
 		summary.byMinute[m] = {
 			runs = row.runs,
 			perClick = if row.clickRuns > 0 then row.perClick / row.clickRuns else 0,
+			meanPerClick = if row.clicks > 0 then row.handPlaced / row.clicks else 0,
 			withChains = if row.clicks > 0 then row.clickPlaced / row.clicks else 0,
 			undone = if row.seconds > 0 then row.undone / row.seconds * 60 else 0,
 			built = row.built / row.runs,
@@ -460,6 +483,7 @@ function Sim.summarise(results: { Result }): Summary
 		summary.boughtAt[nodeId] = levels
 	end
 	summary.undoneRate = if totalMinutes > 0 then summary.undone * runs / totalMinutes else 0
+	summary.undoneWhileUp = if upMinutes > 0 then upUndone / upMinutes else 0
 	if #pays > 0 then
 		summary.pay = mean(pays)
 		summary.payLow = math.huge

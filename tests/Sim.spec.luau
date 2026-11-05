@@ -64,7 +64,12 @@ Test.case("each minute's record adds up to the run", function()
 		Test.equal(by.nearest + by.marker + by.collapse, r.undone, `{name}: undos by how`)
 		if name == "none" then
 			Test.equal(r.undone, 0, "no boss, nothing undone")
+			Test.check(r.roseAt == nil, "no boss, no rise")
 		else
+			-- It may still be making its final stand when the site is finished.
+			local rose, relented = r.roseAt, r.relentedAt
+			Test.check(rose ~= nil and rose < r.minutes, "rose before the end")
+			Test.check(relented == nil or relented > (rose :: number), "relented after it rose")
 			Test.check(r.undone > 0 and by.nearest >= 0 and by.collapse > 0, `{name}: undid {r.undone}`)
 		end
 	end
@@ -120,6 +125,7 @@ Test.case("summarise averages runs, minute by minute", function()
 	Test.equal(s.byMinute[1].runs, 3, "every run has a first minute")
 	Test.check(s.byMinute[#s.byMinute].runs >= 1, "the last minute has a run")
 	Test.check(s.undone > 0 and s.undoneRate > 0, "the boss undid blocks")
+	Test.check(s.undoneWhileUp >= s.undoneRate, "faster while it's up than over the whole run")
 	for _, row in s.byMinute do
 		Test.check(row.earned >= row.purse and row.built > 0 and row.built <= 1, "rows in range")
 	end

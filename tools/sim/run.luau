@@ -142,8 +142,8 @@ local function printRun(r: Sim.Result)
 end
 
 local function printClicks(s: Sim.Summary)
-	print("\n| minute | runs | built | blocks per click | with chains |")
-	print("|---|---|---|---|---|")
+	print("\n| minute | runs | built | blocks a click placed, median | mean | with its chains, mean |")
+	print("|---|---|---|---|---|---|")
 	local peak, peakAt = 0, 0
 	for m, row in s.byMinute do
 		if row.perClick > peak then
@@ -154,16 +154,17 @@ local function printClicks(s: Sim.Summary)
 		local row = s.byMinute[m]
 		print(
 			string.format(
-				"| %d | %d | %s | %.1f | %.1f |",
+				"| %d | %d | %s | %.1f | %.1f | %.1f |",
 				m,
 				row.runs,
 				percent(row.built),
 				row.perClick,
+				row.meanPerClick,
 				row.withChains
 			)
 		)
 	end
-	print(string.format("\nA click places at most %.1f blocks itself, first at minute %d.", peak, peakAt))
+	print(string.format("\nThe median click places at most %.1f blocks itself, first at minute %d.", peak, peakAt))
 end
 
 local function printSkills(s: Sim.Summary)
@@ -227,12 +228,13 @@ local function printUndo(s: Sim.Summary)
 	local by = s.undoneBy
 	print(
 		string.format(
-			"\nUndone per run: %.0f (nearest %.0f, markers %.0f, collapses %.0f), %.1f a minute, at most %.0f in minute %d.",
+			"\nUndone per run: %.0f (nearest %.0f, markers %.0f, collapses %.0f). %.1f a minute over the run, %.1f while the boss is up, at most %.0f in minute %d.",
 			s.undone,
 			by.nearest or 0,
 			by.marker or 0,
 			by.collapse or 0,
 			s.undoneRate,
+			s.undoneWhileUp,
 			peak,
 			peakAt
 		)
@@ -279,7 +281,7 @@ local function summarise(bp: any, bossName: string, players: number): Sim.Summar
 	if show.purse then
 		printPurse(s)
 	end
-	if show.undo then
+	if show.undo and bossName ~= "none" then
 		printUndo(s)
 	end
 	if show.pay and not flag("--coop") then
