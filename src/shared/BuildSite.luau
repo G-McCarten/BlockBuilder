@@ -21,8 +21,10 @@
 	  active       dense list of the slots whose rate isn't 0, which step() advances
 	  dirty        slots changed in a way clients can't extrapolate. takeDirty()
 	               drains them for SiteCodec.
-	  bound        set while the boss forbids finishing the site. Stored here,
-	               enforced by the run.
+	  bound        while true, nothing places once boundCap blocks stand: the
+	               boss's binding holds the site short of finished. Blocks
+	               setting when the cap is hit wait at progress 1 until it lifts.
+	  boundCap     how many placed blocks the binding allows
 	  onPlaced     called as onPlaced(slot, firstTime) whenever a block is placed.
 	               firstTime is true only the first time, when the block pays.
 
@@ -112,6 +114,7 @@ export type Site = {
 	dirtyCount: number,
 	placedCount: number,
 	bound: boolean,
+	boundCap: number,
 	clock: number,
 	onPlaced: ((slot: number, firstTime: boolean) -> ())?,
 	finishing: { number },
@@ -144,6 +147,7 @@ function BuildSite.new(blueprint: BlueprintLike): Site
 		dirtyCount = 0,
 		placedCount = 0,
 		bound = false,
+		boundCap = count,
 		clock = 0,
 		onPlaced = nil,
 		finishing = {},
@@ -268,6 +272,9 @@ function BuildSite.canPlace(site: Site, s: number, cause: number): boolean
 	if state ~= READY and state ~= SETTING then
 		return false
 	end
+	if site.bound and site.placedCount >= site.boundCap then
+		return false
+	end
 	local shield = site.shield[s]
 	if bit32.btest(shield, BLOCKED) or (bit32.btest(shield, HAND_ONLY) and cause ~= HAND) then
 		return false
@@ -381,10 +388,17 @@ function BuildSite.step(site: Site, dt: number)
 	for i = 1, done do
 		local s = finishing[i]
 		finishing[i] = nil
-		if rate[s] > 0 and progress[s] >= 1 then
+		if rate[s] > 0 and progress[s] >= 1 and not (site.bound and site.placedCount >= site.boundCap) then
 			finish(site, s)
 		end
 	end
+end
+
+-- Binds the site so no more than cap blocks can stand, or lifts the binding.
+-- Lifting it lets blocks held at the cap finish on the next step.
+function BuildSite.bind(site: Site, on: boolean, cap: number?)
+	site.bound = on
+	site.boundCap = cap or site.count
 end
 
 -- Moves the dirty slots into out and returns how many there are.

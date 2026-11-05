@@ -58,22 +58,24 @@ function Access.canStand(bp: BlueprintLike, site: SiteLike, x: number, y: number
 	return y == 0 or standing(bp, site, x, y - 1, z)
 end
 
--- Offsets from a root to candidate stand cells, nearest first, by radius.
+-- Offsets from a root to candidate stand cells, nearest first, four numbers
+-- each (dx, dy, dz, squared distance). Cached by whole cells of radius, so a
+-- radius that varies doesn't grow the cache; queries stop at their own radius.
 local offsetCache: { [number]: { number } } = {}
 
 local function offsetsFor(radius: number): { number }
-	local cached = offsetCache[radius]
+	local cells = math.max(0, math.ceil(radius))
+	local cached = offsetCache[cells]
 	if cached then
 		return cached
 	end
 	local list = {}
-	local r = math.ceil(radius) + 1
-	for dy = -r, r do
-		for dz = -r, r do
-			for dx = -r, r do
+	for dy = -cells, cells do
+		for dz = -cells, cells do
+			for dx = -cells, cells do
 				-- From the root to the root of a character standing at the offset cell.
 				local d2 = dx * dx + dy * dy + dz * dz
-				if d2 <= radius * radius then
+				if d2 <= cells * cells then
 					table.insert(list, { dx, dy, dz, d2 })
 				end
 			end
@@ -89,11 +91,12 @@ local function offsetsFor(radius: number): { number }
 		end
 		return a[1] < b[1]
 	end)
-	local flat = table.create(#list * 3, 0)
+	local flat = table.create(#list * 4, 0)
 	for i, o in list do
-		flat[i * 3 - 2], flat[i * 3 - 1], flat[i * 3] = o[1], o[2], o[3]
+		local at = i * 4 - 3
+		flat[at], flat[at + 1], flat[at + 2], flat[at + 3] = o[1], o[2], o[3], o[4]
 	end
-	offsetCache[radius] = flat
+	offsetCache[cells] = flat
 	return flat
 end
 
@@ -110,7 +113,11 @@ function Access.freeSurface(
 ): (number?, number?, number?)
 	local fx, fy, fz = math.floor(px), math.floor(py - 0.5), math.floor(pz)
 	local offsets = offsetsFor(radius)
-	for i = 1, #offsets, 3 do
+	local r2 = radius * radius
+	for i = 1, #offsets, 4 do
+		if offsets[i + 3] > r2 then
+			break
+		end
 		local x, y, z = fx + offsets[i], fy + offsets[i + 1], fz + offsets[i + 2]
 		if Access.canStand(bp, site, x, y, z, headroom) then
 			return x, y, z

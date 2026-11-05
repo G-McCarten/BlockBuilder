@@ -17,6 +17,8 @@ require("./Access.spec")
 require("./SiteActions.spec")
 require("./BossEffects.spec")
 require("./ModelSource.spec")
+require("./SiteSession.spec")
+require("./BossBrain.spec")
 
 local failed = Test.summary()
 print(string.format("%.1f s", os.clock() - started))

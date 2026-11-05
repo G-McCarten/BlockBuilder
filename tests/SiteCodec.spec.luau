@@ -124,6 +124,8 @@ Test.case("the shared site modules create no Instance per block", function()
 			"Access",
 			"Blueprint",
 			"BlueprintValidator",
+			"BossBrain",
+			"BossConfig",
 			"BossEffects",
 			"BuildSite",
 			"CollisionBoxes",
@@ -131,6 +133,7 @@ Test.case("the shared site modules create no Instance per block", function()
 			"SiteCodec",
 			"SiteIndex",
 			"SiteRay",
+			"SiteSession",
 		}
 	do
 		local text = fs.readFile(`src/shared/{name}.luau`)
