@@ -82,18 +82,14 @@ local function centre(index: Index, s: number): (number, number, number)
 	return bp.x[s] + 0.5, bp.y[s] + 0.5, bp.z[s] + 0.5
 end
 
--- Whether the band could place s now, short of the binding's cap, which
--- BuildSite.place checks: READY or SETTING, as BuildSite.state reads them,
--- with no shield flag against it.
-local function bandWorkable(site: Site, s: number): boolean
-	local r = site.rate[s]
-	return (r > 0 or not (r < 0 or site.progress[s] >= 1 or site.unmet[s] > 0))
-		and not bit32.btest(site.shield[s], REFUSES_ABILITY)
-end
-
 -- One layer of a band's pass: the layer's slots in planes p0..p1, merged
 -- into slot order, each placed if it can be when its turn comes. Returns the
 -- new count, and whether this layer placed any.
+--
+-- Workable below means the band could place the slot now, short of the
+-- binding's cap, which BuildSite.place checks: READY or SETTING as
+-- BuildSite.state reads them, with no shield flag against it. Written out in
+-- each loop rather than called, as these loops read every slot in the band.
 local function sweepLayer(
 	site: Site,
 	slices: SiteIndex.Slices,
@@ -106,13 +102,19 @@ local function sweepLayer(
 	count: number
 ): (number, boolean)
 	local start, list, layers = slices.start, slices.list, slices.layers
+	local rate, progress, unmet, shield = site.rate, site.progress, site.unmet, site.shield
 	-- Only placing on this layer could make more of it workable, so a layer with
 	-- nothing workable now has nothing for this pass.
 	local any = false
 	for p = p0, p1 do
 		local b = p * layers + y + 1
 		for i = start[b], start[b + 1] - 1 do
-			if bandWorkable(site, list[i]) then
+			local s = list[i]
+			local r = rate[s]
+			if
+				(r > 0 or not (r < 0 or progress[s] >= 1 or unmet[s] > 0))
+				and not bit32.btest(shield[s], REFUSES_ABILITY)
+			then
 				any = true
 				break
 			end
@@ -148,7 +150,12 @@ local function sweepLayer(
 			return count, progressed
 		end
 		heads[k] += 1
-		if bandWorkable(site, s) and BuildSite.place(site, s, Cause.ABILITY, causer) then
+		local r = rate[s]
+		if
+			(r > 0 or not (r < 0 or progress[s] >= 1 or unmet[s] > 0))
+			and not bit32.btest(shield[s], REFUSES_ABILITY)
+			and BuildSite.place(site, s, Cause.ABILITY, causer)
+		then
 			count += 1
 			placed[count] = s
 			progressed = true
@@ -214,16 +221,11 @@ function SiteActions.hand(
 	local count = 1
 
 	if stats.batch > 1 then
-		local bp = index.blueprint
-		local grasp2 = stats.grasp * stats.grasp
 		local cx, cy, cz = centre(index, slot)
-		-- Anything in the player's grasp is within twice the grasp of the aimed slot.
-		local n = SiteIndex.nearest(index, cx, cy, cz, 2 * stats.grasp, function(s)
-			if not BuildSite.canPlace(site, s, Cause.BATCH) then
-				return false
-			end
-			local dx, dy, dz = bp.x[s] + 0.5 - px, bp.y[s] + 0.5 - py, bp.z[s] + 0.5 - pz
-			return dx * dx + dy * dy + dz * dz <= grasp2
+		-- Anything in the player's grasp is within twice the grasp of the aimed
+		-- slot. The fence keeps only what is in their grasp.
+		local n = SiteIndex.nearestFenced(index, cx, cy, cz, 2 * stats.grasp, px, py, pz, stats.grasp, function(s)
+			return BuildSite.canPlace(site, s, Cause.BATCH)
 		end, stats.batch - 1, found)
 		count = placeOnce(site, found, n, Cause.BATCH, causer, placed, count)
 	end
