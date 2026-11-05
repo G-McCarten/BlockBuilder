@@ -28,6 +28,7 @@ require("./Words.spec")
 require("./Hints.spec")
 require("./Prototype.spec")
 require("./Clients.spec")
+require("./Equivalence.spec")
 
 local failed = Test.summary()
 print(string.format("%.1f s", os.clock() - started))

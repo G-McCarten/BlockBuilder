@@ -126,19 +126,49 @@ function Access.freeSurface(
 	return nil, nil, nil
 end
 
+-- Every slot of a blueprint, lowest layer first and in slot order within a
+-- layer, keyed by the blueprint's y list. A blueprint never changes once
+-- built, and dropping it drops its entry.
+local layerOrders: { [{ number }]: { number } } = setmetatable({}, { __mode = "k" }) :: any
+
+local function layerOrder(bp: BlueprintLike): { number }
+	local y, count = bp.y, bp.count
+	local order = layerOrders[y]
+	if order and #order == count then
+		return order
+	end
+	local top = 0
+	for s = 1, count do
+		top = math.max(top, y[s])
+	end
+	local start = table.create(top + 2, 0)
+	for s = 1, count do
+		start[y[s] + 2] += 1
+	end
+	start[1] = 1
+	for layer = 2, top + 2 do
+		start[layer] += start[layer - 1]
+	end
+	local list = table.create(count, 0)
+	for s = 1, count do
+		local layer = y[s] + 1
+		list[start[layer]] = s
+		start[layer] += 1
+	end
+	layerOrders[y] = list
+	return list
+end
+
 -- The lowest layer holding a READY or SETTING slot, or nil when none is.
+-- Reads slots lowest layer first, so it stops at the first it finds.
 function Access.workingLayer(bp: BlueprintLike, site: SiteLike): number?
-	local best: number? = nil
-	local progress, rate, unmet, y = site.progress, site.rate, site.unmet, bp.y
-	for s = 1, bp.count do
+	local progress, rate, unmet = site.progress, site.rate, site.unmet
+	for _, s in layerOrder(bp) do
 		if unmet[s] == 0 and rate[s] >= 0 and progress[s] < 1 then
-			local layer = y[s]
-			if best == nil or layer < best then
-				best = layer
-			end
+			return bp.y[s]
 		end
 	end
-	return best
+	return nil
 end
 
 return Access

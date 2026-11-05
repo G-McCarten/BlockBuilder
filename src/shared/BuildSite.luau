@@ -263,20 +263,23 @@ local function finish(site: Site, s: number)
 	end
 end
 
--- Whether s is READY or SETTING and its shield lets cause place it.
+-- Whether s is READY or SETTING and its shield lets cause place it. Spatial
+-- queries ask this of many slots, so it reads the state as stateOf does
+-- without calling it.
 function BuildSite.canPlace(site: Site, s: number, cause: number): boolean
-	if not isSlot(site, s) then
+	if not (s >= 1 and s <= site.count and s == s // 1) then
 		return false
 	end
-	local state = stateOf(site, s)
-	if state ~= READY and state ~= SETTING then
+	local r = site.rate[s]
+	-- UNDOING, or neither SETTING nor READY: PLACED or LOCKED.
+	if r < 0 or (not (r > 0) and (site.progress[s] >= 1 or site.unmet[s] > 0)) then
 		return false
 	end
 	if site.bound and site.placedCount >= site.boundCap then
 		return false
 	end
 	local shield = site.shield[s]
-	if bit32.btest(shield, BLOCKED) or (bit32.btest(shield, HAND_ONLY) and cause ~= HAND) then
+	if shield ~= 0 and (bit32.btest(shield, BLOCKED) or (bit32.btest(shield, HAND_ONLY) and cause ~= HAND)) then
 		return false
 	end
 	return true

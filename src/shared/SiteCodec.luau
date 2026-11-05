@@ -101,12 +101,23 @@ function SiteCodec.encodeSnapshot(site: SiteLike): buffer
 	local buf = buffer.create(5 + bitBytes + n * ENTRY)
 	buffer.writeu8(buf, 0, SiteCodec.SNAPSHOT)
 	buffer.writeu16(buf, 1, count)
+	-- Eight slots a byte, built up and written once. The buffer starts zeroed.
+	local byte, bit, at = 0, 1, 3
 	for s = 1, count do
 		if rate[s] == 0 and progress[s] >= 1 then
-			local i = s - 1
-			local at = 3 + i // 8
-			buffer.writeu8(buf, at, bit32.bor(buffer.readu8(buf, at), bit32.lshift(1, i % 8)))
+			byte += bit
 		end
+		if bit == 128 then
+			if byte ~= 0 then
+				buffer.writeu8(buf, at, byte)
+			end
+			byte, bit, at = 0, 1, at + 1
+		else
+			bit *= 2
+		end
+	end
+	if byte ~= 0 then
+		buffer.writeu8(buf, at, byte)
 	end
 	buffer.writeu16(buf, 3 + bitBytes, n)
 	local o = 5 + bitBytes

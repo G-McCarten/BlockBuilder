@@ -70,53 +70,93 @@ export type ArcStats = {
 -- Scratch lists. Actions don't call one another while using the same one.
 local found: { number } = {}
 local ringFound: { number } = {}
+-- A band's merge cursors over the planes it covers, one layer at a time.
+local heads: { number } = {}
+local ends: { number } = {}
+
+-- Shield flags that turn away anything but a player's own click.
+local REFUSES_ABILITY = bit32.bor(BuildSite.Shield.BLOCKED, BuildSite.Shield.HAND_ONLY)
 
 local function centre(index: Index, s: number): (number, number, number)
 	local bp = index.blueprint
 	return bp.x[s] + 0.5, bp.y[s] + 0.5, bp.z[s] + 0.5
 end
 
--- Sorts the first n slots of list by layer, then slot.
-local function lowestFirst(index: Index, list: { number }, n: number)
-	local y = index.blueprint.y
-	for i = n + 1, #list do
-		list[i] = nil
-	end
-	table.sort(list, function(a, b)
-		local ya, yb = y[a], y[b]
-		return ya < yb or (ya == yb and a < b)
-	end)
+-- Whether the band could place s now, short of the binding's cap, which
+-- BuildSite.place checks: READY or SETTING, as BuildSite.state reads them,
+-- with no shield flag against it.
+local function bandWorkable(site: Site, s: number): boolean
+	local r = site.rate[s]
+	return (r > 0 or not (r < 0 or site.progress[s] >= 1 or site.unmet[s] > 0))
+		and not bit32.btest(site.shield[s], REFUSES_ABILITY)
 end
 
--- Places the first n slots of list that cause may place, in order, appending
--- them to placed after count, and goes over the list again while that places
--- more, up to maxPlace in all. Returns the new count.
-local function placeAll(
+-- One layer of a band's pass: the layer's slots in planes p0..p1, merged
+-- into slot order, each placed if it can be when its turn comes. Returns the
+-- new count, and whether this layer placed any.
+local function sweepLayer(
 	site: Site,
-	list: { number },
-	n: number,
-	cause: number,
+	slices: SiteIndex.Slices,
+	y: number,
+	p0: number,
+	p1: number,
 	causer: number,
+	maxPlace: number,
 	placed: { number },
-	count: number,
-	maxPlace: number
-): number
-	local progressed = true
-	while progressed and count < maxPlace do
-		progressed = false
-		for i = 1, n do
-			if count >= maxPlace then
+	count: number
+): (number, boolean)
+	local start, list, layers = slices.start, slices.list, slices.layers
+	-- Only placing on this layer could make more of it workable, so a layer with
+	-- nothing workable now has nothing for this pass.
+	local any = false
+	for p = p0, p1 do
+		local b = p * layers + y + 1
+		for i = start[b], start[b + 1] - 1 do
+			if bandWorkable(site, list[i]) then
+				any = true
 				break
 			end
-			local s = list[i]
-			if BuildSite.place(site, s, cause, causer) then
-				count += 1
-				placed[count] = s
-				progressed = true
+		end
+		if any then
+			break
+		end
+	end
+	if not any then
+		return count, false
+	end
+
+	local w = 0
+	for p = p0, p1 do
+		local b = p * layers + y + 1
+		if start[b] < start[b + 1] then
+			w += 1
+			heads[w] = start[b]
+			ends[w] = start[b + 1]
+		end
+	end
+	local progressed = false
+	while true do
+		-- The lowest slot left at the head of any plane's list.
+		local s, k = math.huge, 0
+		for j = 1, w do
+			local h = heads[j]
+			if h < ends[j] and list[h] < s then
+				s, k = list[h], j
+			end
+		end
+		if k == 0 then
+			return count, progressed
+		end
+		heads[k] += 1
+		if bandWorkable(site, s) and BuildSite.place(site, s, Cause.ABILITY, causer) then
+			count += 1
+			placed[count] = s
+			progressed = true
+			if count >= maxPlace or (site.bound and site.placedCount >= site.boundCap) then
+				return count, true
 			end
 		end
 	end
-	return count
 end
 
 -- Places the first n slots of list that cause may place, once through, in
@@ -199,9 +239,14 @@ function SiteActions.hand(
 	return count, started
 end
 
--- axis 1 runs the band along x, 3 along z: it covers lo <= coordinate < hi on
--- that axis, the whole site on the others. Places up to maxPlace blocks and
--- returns how many, written to placed.
+-- axis 1 runs the band along x, 3 along z: it covers the slots whose centres
+-- lie at lo <= coordinate < hi on that axis, the whole site on the others.
+-- Places up to maxPlace blocks and returns how many, written to placed.
+--
+-- Each pass goes through the band's slots lowest layer first, then by slot,
+-- placing each that can be placed when its turn comes, so a block readies
+-- the ones above it for later in the same pass. Passes repeat while they
+-- place any, up to maxPlace in all.
 function SiteActions.sweep(
 	site: Site,
 	index: Index,
@@ -212,20 +257,43 @@ function SiteActions.sweep(
 	maxPlace: number,
 	placed: { number }
 ): number
-	local bp = index.blueprint
-	local x0, x1, z0, z1 = 0, bp.sizeX, 0, bp.sizeZ
-	if axis == 1 then
-		x0, x1 = lo, hi
-	else
-		z0, z1 = lo, hi
+	if not (maxPlace > 0) or (site.bound and site.placedCount >= site.boundCap) then
+		return 0
 	end
-	-- Unplaced slots, LOCKED ones included: placing below can ready them.
-	local n = SiteIndex.inBox(index, x0, 0, z0, x1, bp.sizeY, z1, function(s)
-		return not BuildSite.isPlaced(site, s)
-	end, found)
-	lowestFirst(index, found, n)
+	local bp = index.blueprint
+	local n = index.chunkCells
+	local size = if axis == 1 then bp.sizeX else bp.sizeZ
+	local chunks = if axis == 1 then index.nx else index.nz
+	-- The planes the band covers, among the chunks a box query over it reads.
+	local c0 = math.max(0, math.ceil(lo - 0.5) // n)
+	local c1 = math.min(chunks - 1, (math.ceil(hi - 0.5) - 1) // n)
+	local p0, p1 = math.huge, -math.huge
+	for p = c0 * n, math.min(size - 1, c1 * n + n - 1) do
+		if p + 0.5 >= lo and p + 0.5 < hi then
+			p0 = math.min(p0, p)
+			p1 = p
+		end
+	end
+	if p0 > p1 then
+		return 0
+	end
 
-	local count = placeAll(site, found, n, Cause.ABILITY, causer, placed, 0, maxPlace)
+	local slices = SiteIndex.slices(index, axis)
+	local count = 0
+	local progressed = true
+	while progressed and count < maxPlace do
+		progressed = false
+		for y = 0, slices.layers - 1 do
+			local placedHere
+			count, placedHere = sweepLayer(site, slices, y, p0, p1, causer, maxPlace, placed, count)
+			if placedHere then
+				progressed = true
+				if count >= maxPlace or (site.bound and site.placedCount >= site.boundCap) then
+					return count
+				end
+			end
+		end
+	end
 	return count
 end
 
