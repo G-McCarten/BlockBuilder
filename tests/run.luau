@@ -20,6 +20,7 @@ require("./ModelSource.spec")
 require("./SiteSession.spec")
 require("./BossBrain.spec")
 require("./Sim.spec")
+require("./Prediction.spec")
 
 local failed = Test.summary()
 print(string.format("%.1f s", os.clock() - started))
