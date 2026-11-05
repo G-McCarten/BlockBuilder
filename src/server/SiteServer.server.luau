@@ -26,6 +26,8 @@
 	  BotPlayers   how many bots (BotBrain) work the site alongside players,
 	               each drawn as a stand-in everyone can see
 	  TestSpeed    1 to 5, how many times faster than real time the site runs
+	  Pets         how many pets (SkillTuning.pet) each player brings, drawn
+	               as stand-ins that ignore collision, read when they join
 	  Cooldown, Grasp, Batch, SetTime, ChainChance, ChainRadius,
 	  PerfectChance, CrewWidth, CrewCooldown
 	               override that stat for everyone, read whenever one changes
@@ -204,11 +206,20 @@ local function currencyValue(player: Player): IntValue
 	return value :: IntValue
 end
 
+local petFolder = Instance.new("Folder")
+petFolder.Name = "SitePets"
+petFolder.Parent = workspace
+local petParts: { [number]: BasePart } = {}
+
 local function join(player: Player)
 	-- A run starts from a bare tree and an empty purse.
 	levels[player] = {}
 	SiteSession.join(session, player.UserId, stats(player))
 	pushStats(player)
+	local pets = workspace:GetAttribute("Pets")
+	for _ = 1, if typeof(pets) == "number" then math.clamp(math.floor(pets), 0, 4) else 0 do
+		SiteSession.addPet(session, player.UserId, SkillTuning.pet)
+	end
 	answers[player] = {}
 	currencyValue(player).Value = 0
 end
@@ -352,6 +363,34 @@ RunService.Heartbeat:Connect(function(dt)
 		entry.part.Position = ORIGIN + Vector3.new(bot.x, bot.y, bot.z) * STUDS
 	end
 	SiteSession.step(session, dt)
+
+	-- Pets' stand-ins follow them; a pet gone with its owner takes its part.
+	local alive = {}
+	for _, pet in session.pets do
+		alive[pet.id] = true
+		local part = petParts[pet.id]
+		if part == nil then
+			part = Instance.new("Part")
+			part.Name = `Pet{pet.id}`
+			part.Shape = Enum.PartType.Ball
+			part.Anchored = true
+			part.CanCollide = false
+			part.CanQuery = false
+			part.CanTouch = false
+			part.Size = Vector3.one * 1.6
+			part.Color = Color3.fromRGB(255, 214, 140)
+			part.Material = Enum.Material.Neon
+			part.Parent = petFolder
+			petParts[pet.id] = part
+		end
+		part.Position = ORIGIN + Vector3.new(pet.x, pet.y, pet.z) * STUDS
+	end
+	for id, part in petParts do
+		if not alive[id] then
+			part:Destroy()
+			petParts[id] = nil
+		end
+	end
 
 	-- This tick's delta, then the answers to this tick's clicks, in one message.
 	local delta = SiteSession.takeDelta(session)

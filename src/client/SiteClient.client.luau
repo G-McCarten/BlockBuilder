@@ -367,7 +367,10 @@ local function setFar(c: number, far: boolean)
 		buildFar(c)
 		chunkFar[c] = true
 		for i = index.slotStart[c], index.slotStart[c + 1] - 1 do
-			redraw(index.slotList[i])
+			local s = index.slotList[i]
+			redraw(s)
+			-- Drawn as part of the boxes just built; nothing left to redraw.
+			redrawQueue[s] = nil
 		end
 		farDirty[c] = nil
 	else
@@ -384,6 +387,19 @@ end
 local function chunkDistance(c: number, from: Vector3): number
 	local x0, y0, z0, x1, y1, z1 = SiteIndex.bounds(index, c)
 	return (ORIGIN + Vector3.new(x0 + x1, y0 + y1, z0 + z1) * (STUDS / 2) - from).Magnitude
+end
+
+-- Puts each chunk near or far by its distance from the camera.
+local function updateChunkModes()
+	local camera = workspace.CurrentCamera.CFrame.Position
+	for c = 1, index.chunkCount do
+		local d = chunkDistance(c, camera)
+		if d > FAR_STUDS then
+			setFar(c, true)
+		elseif d < NEAR_STUDS then
+			setFar(c, false)
+		end
+	end
 end
 
 -- Ghosts and aim ------------------------------------------------------------
@@ -1028,6 +1044,9 @@ StateRemote.OnClientEvent:Connect(function(kind, buf, answers)
 			BuildSite.setRemote(mirror, s, p, r)
 			markRedraw(s)
 		end)
+		-- Far chunks start as boxes, so joining a built site doesn't first
+		-- draw every block one by one.
+		updateChunkModes()
 		return
 	end
 	if buf then
@@ -1179,15 +1198,7 @@ RunService.RenderStepped:Connect(function(dt)
 	if arcClock >= 0.25 then
 		arcClock = 0
 		if timelapse == nil then
-			local camera = workspace.CurrentCamera.CFrame.Position
-			for c = 1, index.chunkCount do
-				local d = chunkDistance(c, camera)
-				if d > FAR_STUDS then
-					setFar(c, true)
-				elseif d < NEAR_STUDS then
-					setFar(c, false)
-				end
-			end
+			updateChunkModes()
 		end
 		applyArc()
 		refreshShop()
