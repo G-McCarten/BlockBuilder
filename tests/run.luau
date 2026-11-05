@@ -26,6 +26,7 @@ require("./Timelapse.spec")
 require("./SiteList.spec")
 require("./Words.spec")
 require("./Hints.spec")
+require("./Content.spec")
 require("./Prototype.spec")
 require("./Clients.spec")
 

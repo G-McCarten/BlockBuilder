@@ -8,7 +8,8 @@ local fs = require("@lune/fs")
 
 local Test = require("./lib/Test")
 
--- Files whose job is the theme's words and content.
+-- Files whose job is the theme's words and content. An entry ending in "/"
+-- is a folder of them.
 local CONTENT = {
 	["src/shared/Theme.luau"] = true,
 	["src/shared/SkillTuning.luau"] = true,
@@ -17,6 +18,7 @@ local CONTENT = {
 	["src/shared/WorldArcConfig.luau"] = true,
 	["src/shared/BossConfig.luau"] = true,
 	["src/shared/HintConfig.luau"] = true,
+	["src/shared/content/"] = true,
 }
 
 local CURRENT = {
@@ -89,7 +91,8 @@ Test.group("Words")
 Test.case("code outside Theme and the content configs uses no Frostward words", function()
 	for _, path in files("src", {}) do
 		local isBlueprint = string.find(path, "/Blueprints/", 1, true) ~= nil
-		if not CONTENT[path] and not isBlueprint then
+		local isContent = CONTENT[path] or CONTENT[string.match(path, "^.*/")]
+		if not isContent and not isBlueprint then
 			local text = string.lower(fs.readFile(path))
 			for _, word in CURRENT do
 				Test.check(not hasWord(text, word), `{path} says "{word}": take it from Theme or a content config`)
