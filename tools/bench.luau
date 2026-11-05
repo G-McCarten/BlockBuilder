@@ -23,11 +23,14 @@
 
 	The client half runs the prototype the way tests/Prototype.spec.luau does,
 	under tests/lib/FakeRoblox, on GreatHall with 4 bots at TestSpeed 5, and
-	times each frame for --frames (1800) frames: the RenderStepped handler,
-	the remote handlers that apply the server's messages, and the shared
-	calls inside both, each counted with what it calls. Lune stands in for
-	Roblox's engine there, so instance work costs more than it would in
-	Studio: compare those numbers with each other, not with a frame budget.
+	times each frame for --frames (1800) frames: the RenderStepped handler and
+	the remote handlers that apply the server's messages. Then it plays the
+	same frames again with probes, for where that time goes: the shared calls
+	inside those handlers, each timed with what it calls, and the instance
+	properties they write, the Roblox methods they call and the instances
+	they make, a frame each. Lune stands in for Roblox's engine there, so
+	instance work costs more than it would in Studio: compare those numbers
+	with each other, not with a frame budget.
 
 	Times are in milliseconds, from os.clock.
 ]]
@@ -277,73 +280,162 @@ local function probeClient(world, totals: { [string]: { number } })
 	end
 end
 
--- Replaces each connected handler of signal with one that adds its time to spent[1].
-local function timeHandlers(signal, spent: { number })
+-- Wraps each connected handler of signal: before(), the handler, then after(seconds).
+local function aroundHandlers(signal, before: () -> (), after: (seconds: number) -> ())
 	for _, entry in signal.handlers do
 		local fn = entry.fn
 		entry.fn = function(...)
+			before()
 			local started = os.clock()
 			fn(...)
-			spent[1] += os.clock() - started
+			after(os.clock() - started)
 		end
 	end
 end
 
-local function client()
+local function nothing() end
+
+-- The prototype on GreatHall with 4 bots at TestSpeed 5, through its first
+-- frames, which take the snapshot and draw the site. Returns the world and
+-- the seconds that took.
+local function bootPrototype()
 	local game = PlaceBuilder.build("default.project.json")
 	local workspace = game:GetService("Workspace")
 	workspace:SetAttribute("BotPlayers", 4)
 	workspace:SetAttribute("TestSpeed", 5)
 	workspace:SetAttribute("Site", "GreatHall")
 	local world = FakeRoblox.new(game)
-	local bootStarted = os.clock()
+	local started = os.clock()
 	world:runScripts("server")
 	world:addPlayer(1)
 	world:runScripts("client")
-
-	local Vector3, CFrame, Ray = roblox.Vector3, roblox.CFrame, roblox.Ray
-	local origin = workspace:GetAttribute("SiteOrigin")
-	local studs = 3
 	-- Over the site's front half, so some chunks are near and some far.
-	world.camera.CFrame = CFrame.new(origin + Vector3.new(60, 30, 40))
-
-	local render, remotes, beat = { 0 }, { 0 }, { 0 }
-	timeHandlers(world.runService.RenderStepped, render)
-	timeHandlers(world.runService.Heartbeat, beat)
-	for _, signals in world.signals do
-		if signals.OnClientEvent then
-			timeHandlers(signals.OnClientEvent, remotes)
-		end
-	end
-	-- The first frames take the snapshot and draw the site.
+	world.camera.CFrame = roblox.CFrame.new(workspace:GetAttribute("SiteOrigin") + roblox.Vector3.new(60, 30, 40))
 	for _ = 1, 10 do
 		world:step(1 / 60)
 	end
-	local bootSeconds = os.clock() - bootStarted
-	local totals: { [string]: { number } } = {}
-	probeClient(world, totals)
+	return world, os.clock() - started
+end
 
+-- One frame, the mouse over a different column of the site each time, as an
+-- idle player's might wander.
+local function playFrame(world, frame: number)
+	local Vector3 = roblox.Vector3
+	local origin = world.realGame:GetService("Workspace"):GetAttribute("SiteOrigin")
+	local x, z = (frame * 7) % 67, (frame * 11) % 36
+	world.aimRay = roblox.Ray.new(origin + Vector3.new(x + 0.5, 40, z + 0.5) * 3, Vector3.new(0, -1, 0))
+	world:step(1 / 60)
+end
+
+-- Prints the largest counts, a frame each, under label.
+local function topCounts(label: string, counts: { [string]: number }, limit: number)
+	local names = {}
+	for name in counts do
+		table.insert(names, name)
+	end
+	table.sort(names, function(a, b)
+		return counts[a] > counts[b] or (counts[a] == counts[b] and a < b)
+	end)
+	for i = 1, math.min(limit, #names) do
+		print(string.format("  %-26s %-30s %8.2f a frame", label, names[i], counts[names[i]] / FRAMES))
+	end
+end
+
+local function client()
+	-- The timed run: nothing in the frames but the handlers' own clocks.
+	local world, bootSeconds = bootPrototype()
+	local render, remotes, beat = 0, 0, 0
+	aroundHandlers(world.runService.RenderStepped, nothing, function(t)
+		render += t
+	end)
+	aroundHandlers(world.runService.Heartbeat, nothing, function(t)
+		beat += t
+	end)
+	for _, signals in world.signals do
+		if signals.OnClientEvent then
+			aroundHandlers(signals.OnClientEvent, nothing, function(t)
+				remotes += t
+			end)
+		end
+	end
 	local renderTimes, remoteTimes, clientTimes, beatTimes = {}, {}, {}, {}
 	for frame = 1, FRAMES do
-		-- The mouse sweeps over the site, as an idle player's might.
-		local x, z = (frame * 7) % 67, (frame * 11) % 36
-		world.aimRay = Ray.new(origin + Vector3.new(x + 0.5, 40, z + 0.5) * studs, Vector3.new(0, -1, 0))
-		render[1], remotes[1], beat[1] = 0, 0, 0
-		world:step(1 / 60)
-		renderTimes[frame] = render[1]
-		remoteTimes[frame] = remotes[1]
-		clientTimes[frame] = render[1] + remotes[1]
-		beatTimes[frame] = beat[1]
+		render, remotes, beat = 0, 0, 0
+		playFrame(world, frame)
+		renderTimes[frame] = render
+		remoteTimes[frame] = remotes
+		clientTimes[frame] = render + remotes
+		beatTimes[frame] = beat
 	end
-
 	local label = "client GreatHall 4 bots"
 	row(label, "render ms", renderTimes, 1000, "%8.4f")
 	row(label, "remote ms", remoteTimes, 1000, "%8.4f")
 	row(label, "frame ms", clientTimes, 1000, "%8.4f")
 	row("server GreatHall 4 bots", "beat ms", beatTimes, 1000, "%8.4f")
+	print(
+		string.format(
+			"  %-26s booted and drew the site in %.0f ms; %d placed after %d frames; %d errors",
+			label,
+			bootSeconds * 1000,
+			world.realGame:GetService("Workspace"):GetAttribute("SitePlaced") or 0,
+			FRAMES,
+			#world.errors
+		)
+	)
+	for _, e in world.errors do
+		print(`  error: {e}`)
+	end
 	local clientTotal = 0
 	for _, v in clientTimes do
 		clientTotal += v
+	end
+
+	-- The same frames again, probed: the shared calls inside the client's
+	-- handlers, and what those handlers do to instances.
+	print("\n  The same frames again, with probes, for where the client's time goes:")
+	world = bootPrototype()
+	local inClient = false
+	local enter = function()
+		inClient = true
+	end
+	local leave = function()
+		inClient = false
+	end
+	aroundHandlers(world.runService.RenderStepped, enter, leave)
+	for _, signals in world.signals do
+		if signals.OnClientEvent then
+			aroundHandlers(signals.OnClientEvent, enter, leave)
+		end
+	end
+	local totals: { [string]: { number } } = {}
+	probeClient(world, totals)
+	local writes, calls, made = {}, {}, {}
+	local newindex, index = FakeRoblox.newindex, FakeRoblox.index
+	world.newindex = function(self, proxy, key, value)
+		if inClient then
+			local name = `{self.reals[proxy].ClassName}.{key}`
+			writes[name] = (writes[name] or 0) + 1
+		end
+		return newindex(self, proxy, key, value)
+	end
+	world.index = function(self, proxy, key)
+		local value = index(self, proxy, key)
+		if inClient and type(value) == "function" then
+			local name = `{self.reals[proxy].ClassName}:{key}`
+			calls[name] = (calls[name] or 0) + 1
+		end
+		return value
+	end
+	-- Every script's Instance is this one table, so this sees both sides' calls.
+	local instanceNew = world.globals.Instance.new
+	world.globals.Instance.new = function(className: string)
+		if inClient then
+			made[className] = (made[className] or 0) + 1
+		end
+		return instanceNew(className)
+	end
+	for frame = 1, FRAMES do
+		playFrame(world, frame)
 	end
 	local names = {}
 	for name, total in totals do
@@ -358,7 +450,7 @@ local function client()
 		local total = totals[name]
 		print(
 			string.format(
-				"  %-26s %-26s %8.4f ms a frame, %7.2f calls a frame, %5.1f%% of the client's time",
+				"  %-26s %-30s %8.4f ms a frame, %7.2f calls a frame, %5.1f%% of the timed client's time",
 				"client calls",
 				name,
 				total[1] * 1000 / FRAMES,
@@ -367,19 +459,9 @@ local function client()
 			)
 		)
 	end
-	print(
-		string.format(
-			"  %-26s booted and drew the site in %.0f ms; %d placed after %d frames; %d errors",
-			label,
-			bootSeconds * 1000,
-			workspace:GetAttribute("SitePlaced") or 0,
-			FRAMES,
-			#world.errors
-		)
-	)
-	for _, e in world.errors do
-		print(`  error: {e}`)
-	end
+	topCounts("client writes", writes, 10)
+	topCounts("client calls Roblox", calls, 6)
+	topCounts("instances made", made, 4)
 end
 
 -- Run -------------------------------------------------------------------------
