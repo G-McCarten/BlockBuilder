@@ -54,7 +54,13 @@ Set `Difficulty` to `Hard`, then `Nightmare`. `TestSpeed` up to 5 reaches the bo
 - [ ] **Difficulty adds errands, not tougher blocks.** That rule isn't negotiable, so note anything that breaks it.
 - [ ] **Finishing ends the boss.** On Nightmare the boss makes a final stand at 95%, but when the last block lands it leaves, and nothing more is undone during the timelapse.
 
-## 5. Looks
+## 5. Bots and co-op (the Phase 3 and 4 proofs)
+
+- [ ] **A bot run lands near the sim's time.** Set `BotPlayers` to 1, `Difficulty` to `None` and `TestSpeed` to 5. Stand aside and time the lodge from the first block to the timelapse. At ×5, about 6 minutes of real time is 30 minutes of play. The sim says 29.6 minutes for a bot buying the cheapest skill first. Phase 3 asks for the two to agree within 10%.
+- [ ] **×5 can be trusted.** The formula asks you to compare one ×5 run against real time before trusting ×5. Play one site at `TestSpeed` 1 with a bot and check the times agree.
+- [ ] **Two real clients agree.** Start a Local Server with 2 players (Test, then Clients and Servers). Lay blocks in both windows, sometimes the same cell, against a `Hard` boss. Both windows should show the same build, and a block one player lays should land for the other within a moment.
+
+## 6. Looks
 
 - [ ] **Each block kind is easy to tell apart:** stone, timber, thatch, ice, rope, lantern, slate and glass.
 - [ ] **The sites read well.** Set `Site` to `IceBridge`, `Watchtower` or `GreatHall`. The sites agent judged them from its own renders only.
@@ -62,7 +68,7 @@ Set `Difficulty` to `Hard`, then `Nightmare`. `TestSpeed` up to 5 reaches the bo
 - [ ] **The ending plays.** It's a ten-second timelapse, then each player's payout, then the next site 30 seconds later.
 - [ ] **The dust looks right.** It uses the emitter's default texture, since no asset ids were added. The emitter is moved one frame and burst the next, which assumes the burst comes from the new spot.
 
-## 6. The stress test (the gate's number)
+## 7. The stress test (the gate's number)
 
 The stress-test mode is being added to the prototype. Once it lands, the README's "Play the prototype" section has the exact steps. The plan is:
 
