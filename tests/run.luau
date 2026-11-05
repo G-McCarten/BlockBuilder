@@ -29,6 +29,7 @@ require("./Hints.spec")
 require("./Content.spec")
 require("./Prototype.spec")
 require("./Clients.spec")
+require("./Invariants.spec")
 require("./Equivalence.spec")
 
 local failed = Test.summary()

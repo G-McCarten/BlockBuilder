@@ -90,6 +90,8 @@ The prototype's scripts aren't run in Studio here; `tests/Prototype.spec.luau` r
 
 The tests boot the place, lay blocks by holding the mouse, buy a skill, let a Hard boss bind the site, ride a hoist pad, and play a site to the end through its timelapse and reset, all with no script errors. `tests/lib/FakeGroup` runs a server and two clients the way Studio's Local Server does, each with its own view, input and module cache. In `tests/Clients.spec.luau`, two players lay blocks against a Hard boss, sometimes racing for the same cells, and both clients end showing exactly what the server holds. What the tests can't show is how it looks, feels or performs, or anything about physics, which only Studio shows.
 
+[`docs/invariants.md`](docs/invariants.md) lists the tests behind each of section 4.2's six invariants. `tests/Invariants.spec.luau` covers the two that need the whole place: a block laid where a character stands moves them clear, a character wedged for 2 seconds is moved, and the server makes no Instance while blocks are laid.
+
 ### What the sim measures
 
 `lune run tools/sim/run` plays whole runs with bots through `SiteSession`. Bots buy the cheapest skill they can afford, use the ability when it's ready, break markers and bindings, and shoo the boss; otherwise they work the nearest slot. The economy in `src/shared/SkillTuning.luau` is a placeholder, tuned so a solo first run of the lodge takes about 30 minutes. Measured on the WoodcuttersLodge:
