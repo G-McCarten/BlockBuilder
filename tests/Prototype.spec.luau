@@ -281,6 +281,22 @@ Test.case("with Sure Hand, a click at the sky lays the nearest block in reach", 
 	Test.equal(#world.errors, 0, errorsOf(world))
 end)
 
+Test.case("bots work the site alongside players, sped up by TestSpeed", function()
+	local world = boot({ BotPlayers = 3, TestSpeed = 5, Difficulty = "Hard" })
+	local folder = world.realGame:GetService("Workspace"):FindFirstChild("SiteBots")
+	Test.equal(#folder:GetChildren(), 3, "three bots drawn")
+	world.camera.CFrame = CFrame.new(ORIGIN + Vector3.new(60, 30, 40))
+	for _ = 1, 60 * 60 do
+		world:step(1 / 60)
+	end
+	local drawn = drawnCount(world)
+	Test.check(drawn > 1500, `in a minute at five times speed, bots laid {drawn}`)
+	world.workspaceProxy:SetAttribute("BotPlayers", 1)
+	world:step(1 / 60)
+	Test.equal(#folder:GetChildren(), 1, "one bot after the change")
+	Test.equal(#world.errors, 0, errorsOf(world))
+end)
+
 Test.case("a finished site is announced, then a fresh one replaces it", function()
 	local world, player = boot()
 	world.workspaceProxy:SetAttribute("Difficulty", "None")

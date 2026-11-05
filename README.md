@@ -22,7 +22,7 @@ The prototype runs the four sites in a plain place, starting with the Woodcutter
 Controls:
 
 - Click or tap to lay a brick, and hold to keep laying. The outlined slot is the one you'd lay.
-- Keys 1 to 5, or the shop on the left, buy skill levels with Embers.
+- The number keys, or the shop on the left, buy skill levels with Embers. Sure Hand is auto-aim: a click with nothing under the cursor lays the nearest brick in reach.
 - Q, or the button on the right, calls the Sled Train once its skill is bought.
 - On a gamepad, R2 lays at the screen centre and X calls the crew.
 - Step on a blue hoist pad to ride up to the working height.
@@ -39,6 +39,9 @@ Workspace attributes change it while it runs:
 
 - `Difficulty`: `None`, `Normal`, `Hard` or `Nightmare`. It's read when a site starts.
 - `Site`: a site's id from `SiteList` (`WoodcuttersLodge`, `IceBridge`, `Watchtower`, `GreatHall`) to start there.
+- `BotPlayers`: how many bots (the sim's `BotBrain`) work the site with you, drawn as orange stand-ins.
+- `TestSpeed`: 1 to 5, how many times faster than real time the site runs.
+- `PowerTool`: true gives everyone the Forge Hammer, as its game pass will. Swing it with F.
 - `Cooldown`, `Grasp`, `Batch`, `SetTime`, `ChainChance`, `ChainRadius`, `PerfectChance`, `CrewWidth`, `CrewCooldown`: each overrides that stat for everyone.
 
 It's a sandbox, not the game. It has no meta, saves, pets, mounts, parties or menus. The cooldown shows as a bar rather than a ring, and its tick is a built-in Studio sound. At the fork, the Unharvester-based `BuildRenderer`, `PlaceController` and `SiteService` replace `src/client` and `src/server`, calling the same shared modules.
@@ -65,7 +68,8 @@ It's a sandbox, not the game. It has no meta, saves, pets, mounts, parties or me
 | Timelapse: the ending's order and pacing (4.7) | `src/shared/Timelapse.luau` | tested |
 | Theme: player-facing words | `src/shared/Theme.luau` | slot pick A |
 | Prototype server and client | `src/server`, `src/client` | run under a Roblox stand-in in tests |
-| Run sim with bots | `tools/sim/` | tested |
+| BotBrain: a bot that plays a site, for the sim and for testing alone in Studio | `src/shared/BotBrain.luau` | tested |
+| Run sim | `tools/sim/` | tested |
 | Stamp tool, from a script or a Studio model | `tools/stamp_blueprint.luau`, `tools/lib/ModelSource.luau` | tested |
 | SiteList and KindLooks: the sites in order, and each block kind's look | `src/shared/SiteList.luau`, `src/shared/KindLooks.luau` | tested |
 | Blueprints: TestHut (508), WoodcuttersLodge (5,928), IceBridge (7,320), Watchtower (8,754), GreatHall (10,746) | `tools/blueprints/` | validated, sizes provisional |

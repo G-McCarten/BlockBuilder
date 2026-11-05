@@ -23,6 +23,9 @@
 	  Site         a SiteList id to start at, read when the server starts
 	  PowerTool    true gives everyone the POWER_TOOL, swung on
 	               SiteRemotes.Tool, as its game pass will
+	  BotPlayers   how many bots (BotBrain) work the site alongside players,
+	               each drawn as a stand-in everyone can see
+	  TestSpeed    1 to 5, how many times faster than real time the site runs
 	  Cooldown, Grasp, Batch, SetTime, ChainChance, ChainRadius,
 	  PerfectChance, CrewWidth, CrewCooldown
 	               override that stat for everyone, read whenever one changes
@@ -35,6 +38,7 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Blueprint = require(Shared:WaitForChild("Blueprint"))
 local BossBrain = require(Shared:WaitForChild("BossBrain"))
+local BotBrain = require(Shared:WaitForChild("BotBrain"))
 local BossConfig = require(Shared:WaitForChild("BossConfig"))
 local SiteConfig = require(Shared:WaitForChild("SiteConfig"))
 local SiteList = require(Shared:WaitForChild("SiteList"))
@@ -131,6 +135,11 @@ local EventRemote = remote("Event")
 workspace:SetAttribute("SiteOrigin", ORIGIN)
 remotes.Parent = ReplicatedStorage
 
+local botFolder = Instance.new("Folder")
+botFolder.Name = "SiteBots"
+botFolder.Parent = workspace
+local bots: { { bot: any, part: BasePart } } = {}
+
 local random = Random.new()
 local session
 local answers: { [Player]: { any } } = {}
@@ -204,6 +213,33 @@ local function join(player: Player)
 	currencyValue(player).Value = 0
 end
 
+-- Bots work the site with negative ids, so they never meet a real UserId.
+local function syncBots()
+	for _, entry in bots do
+		SiteSession.leave(session, entry.bot.id)
+		entry.part:Destroy()
+	end
+	table.clear(bots)
+	local wanted = workspace:GetAttribute("BotPlayers")
+	local count = if typeof(wanted) == "number" then math.clamp(math.floor(wanted), 0, 8) else 0
+	for i = 1, count do
+		local id = -i
+		local bot = BotBrain.new(session, id, bp.sizeX * i / (count + 1), 1, -2)
+		SiteSession.join(session, id, SkillTuning.stats(bot.levels), toolFor(nil :: any))
+		local part = Instance.new("Part")
+		part.Name = `Bot{i}`
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+		part.Size = Vector3.new(2, 5, 2)
+		part.Color = Color3.fromRGB(255, 170, 90)
+		part.Material = Enum.Material.SmoothPlastic
+		part.Parent = botFolder
+		table.insert(bots, { bot = bot, part = part })
+	end
+end
+
 local function sendSnapshot(player: Player)
 	StateRemote:FireClient(player, "snapshot", SiteSession.snapshot(session), {})
 	BossRemote:FireClient(player, if session.boss then BossBrain.view(session.boss) else nil)
@@ -222,6 +258,7 @@ local function start(n: number)
 	for _, player in Players:GetPlayers() do
 		join(player)
 	end
+	syncBots()
 end
 
 start(chosenSite())
@@ -233,7 +270,11 @@ Players.PlayerRemoving:Connect(function(player)
 	levels[player] = nil
 end)
 
-workspace.AttributeChanged:Connect(function()
+workspace.AttributeChanged:Connect(function(name)
+	if name == "BotPlayers" then
+		syncBots()
+		return
+	end
 	for _, player in Players:GetPlayers() do
 		pushStats(player)
 	end
@@ -299,9 +340,16 @@ end)
 
 local bossClock = 0
 RunService.Heartbeat:Connect(function(dt)
-	dt = math.min(dt, 0.1)
+	local speed = workspace:GetAttribute("TestSpeed")
+	dt = math.min(dt, 0.1) * (if typeof(speed) == "number" then math.clamp(speed, 1, 5) else 1)
 	for _, player in Players:GetPlayers() do
 		updatePosition(player)
+	end
+	local hasTool = workspace:GetAttribute("PowerTool") == true
+	for _, entry in bots do
+		local bot = entry.bot
+		BotBrain.step(bot, session, SkillTuning, dt, hasTool)
+		entry.part.Position = ORIGIN + Vector3.new(bot.x, bot.y, bot.z) * STUDS
 	end
 	SiteSession.step(session, dt)
 
