@@ -58,6 +58,15 @@ function Prediction.isPredicted(pred: Prediction, slot: number): boolean
 	return pred.pending[slot] ~= nil
 end
 
+-- Sets a slot's state in the mirror and reports the change.
+local function set(pred: Prediction, slot: number, progress: number, rate: number)
+	BuildSite.setRemote(pred.mirror, slot, progress, rate)
+	local onChange = pred.onChange
+	if onChange then
+		onChange(slot)
+	end
+end
+
 -- Places slot in the mirror for request id, if the mirror says a click
 -- could place it. Returns whether it did.
 function Prediction.predict(pred: Prediction, slot: number, id: number, now: number): boolean
@@ -76,14 +85,6 @@ function Prediction.predict(pred: Prediction, slot: number, id: number, now: num
 	pred.count += 1
 	set(pred, slot, 1, 0)
 	return true
-end
-
-local function set(pred: Prediction, slot: number, progress: number, rate: number)
-	BuildSite.setRemote(pred.mirror, slot, progress, rate)
-	local onChange = pred.onChange
-	if onChange then
-		onChange(slot)
-	end
 end
 
 local function clear(pred: Prediction, slot: number)

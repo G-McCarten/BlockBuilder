@@ -103,6 +103,20 @@ Test.case("a stale state waits behind a prediction, a placed one confirms it", f
 	Test.check(not BuildSite.isPlaced(mirror, 2), "a no restores the server's state")
 end)
 
+Test.case("every change to the mirror is reported", function()
+	local bp = Sites.hut()
+	local mirror = BuildSite.new(bp)
+	local pred = Prediction.new(mirror)
+	local changed = {}
+	pred.onChange = function(slot)
+		table.insert(changed, slot)
+	end
+	Prediction.predict(pred, 1, 1, 0)
+	Prediction.answer(pred, 1, false)
+	Prediction.receive(pred, 2, 1, 0)
+	Test.equal(table.concat(changed, ","), "1,1,2", "predict, roll back, receive")
+end)
+
 Test.case("unanswered predictions expire", function()
 	local bp = Sites.hut()
 	local mirror = BuildSite.new(bp)
