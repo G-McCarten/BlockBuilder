@@ -68,6 +68,7 @@ local SiteIndex = require(Shared:WaitForChild("SiteIndex"))
 local SiteList = require(Shared:WaitForChild("SiteList"))
 local SiteRay = require(Shared:WaitForChild("SiteRay"))
 local SkillTuning = require(Shared:WaitForChild("SkillTuning"))
+local StressSite = require(Shared:WaitForChild("StressSite"))
 local Theme = require(Shared:WaitForChild("Theme"))
 local Timelapse = require(Shared:WaitForChild("Timelapse"))
 local WorldArc = require(Shared:WaitForChild("WorldArc"))
@@ -82,6 +83,7 @@ local ToolRemote = remotes:WaitForChild("Tool")
 local StateRemote = remotes:WaitForChild("State")
 local BossRemote = remotes:WaitForChild("Boss")
 local EventRemote = remotes:WaitForChild("Event")
+local StressRemote = remotes:WaitForChild("Stress")
 
 while workspace:GetAttribute("SiteOrigin") == nil do
 	task.wait()
@@ -94,12 +96,27 @@ local State = BuildSite.State
 -- The site in play, which the server names in the workspace's CurrentSite
 -- attribute. A snapshot for another site switches to it.
 local blueprints = Shared:WaitForChild("Blueprints")
+
+-- A site's blueprint by its id: a stamped one, or a stress site's, built
+-- here from the size its id names, as the server builds it.
+local function loadBlueprint(id: string): Blueprint.Blueprint
+	local count = StressSite.parse(id)
+	if count then
+		return Blueprint.build(StressSite.source(count))
+	end
+	return Blueprint.load(require(blueprints:WaitForChild(id)))
+end
+
 local siteId = workspace:GetAttribute("CurrentSite") or SiteList[1].id
-local bp = Blueprint.load(require(blueprints:WaitForChild(siteId)))
+local bp = loadBlueprint(siteId)
 local index = SiteIndex.build(bp, SiteConfig.CHUNK_CELLS)
 local found = {}
 
 local function siteName(id: string): string
+	local count = StressSite.parse(id)
+	if count then
+		return StressSite.name(count)
+	end
 	for _, entry in SiteList do
 		if entry.id == id then
 			return entry.name
@@ -590,7 +607,7 @@ end
 
 -- Snapshots -----------------------------------------------------------------
 
-local queueSnapshot, drawBacklog, clearBacklog
+local queueSnapshot, drawBacklog, clearBacklog, backlogLeft
 do
 	-- A snapshot's drawing waits here, nearest chunk first: a slot to draw on
 	-- its own, or minus a far chunk to merge. Each frame spends
@@ -671,6 +688,11 @@ do
 	function clearBacklog()
 		table.clear(backlog)
 		backlogAt = 1
+	end
+
+	-- How many entries of the last snapshot are still to draw.
+	function backlogLeft(): number
+		return #backlog - backlogAt + 1
 	end
 end
 
@@ -1809,6 +1831,453 @@ do
 	end)
 end
 
+-- Stress test: readout ------------------------------------------------------
+
+-- A debug readout for the renderer's stress test (formula 4.5): frames a
+-- second, and the mean and 95th-percentile frame time over the last two
+-- seconds, from RenderStepped's step; then what the client draws: block
+-- parts in near chunks, far chunks' merged boxes, and near chunks'
+-- collision boxes. It shows whenever the workspace's StressTest attribute
+-- is set, and F3 shows or hides it at any time. A ladder's table shows in
+-- the middle of the screen once the ladder is done.
+local frameSummary, drawCounts, setStressStatus, showStressTable
+do
+	local WINDOW_SECONDS = 2
+	local REFRESH_SECONDS = 0.25
+	-- More frames than two seconds hold at any frame rate Roblox runs at.
+	local CAPACITY = 1024
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "SiteStress"
+	gui.ResetOnSpawn = false
+	gui.DisplayOrder = 10
+	gui.Enabled = workspace:GetAttribute("StressTest") ~= nil
+	gui.Parent = player:WaitForChild("PlayerGui")
+
+	-- A panel of monospaced text that grows to fit it.
+	local function panel(name: string): TextLabel
+		local l = Instance.new("TextLabel")
+		l.Name = name
+		l.AutomaticSize = Enum.AutomaticSize.XY
+		l.Size = UDim2.fromOffset(0, 0)
+		l.BackgroundColor3 = Color3.fromRGB(12, 16, 26)
+		l.BackgroundTransparency = 0.3
+		l.BorderSizePixel = 0
+		l.Font = Enum.Font.Code
+		l.TextSize = 13
+		l.TextColor3 = Color3.fromRGB(225, 235, 250)
+		l.TextXAlignment = Enum.TextXAlignment.Left
+		l.TextYAlignment = Enum.TextYAlignment.Top
+		l.Text = ""
+		local pad = Instance.new("UIPadding")
+		pad.PaddingLeft = UDim.new(0, 8)
+		pad.PaddingRight = UDim.new(0, 8)
+		pad.PaddingTop = UDim.new(0, 6)
+		pad.PaddingBottom = UDim.new(0, 6)
+		pad.Parent = l
+		l.Parent = gui
+		return l
+	end
+	-- By the right edge, below Roblox's player list and above the buttons
+	-- beside the jump button.
+	local readout = panel("Readout")
+	readout.AnchorPoint = Vector2.new(1, 0)
+	readout.Position = UDim2.new(1, -12, 0, 96)
+	local results = panel("Results")
+	results.AnchorPoint = Vector2.new(0.5, 0.5)
+	results.Position = UDim2.fromScale(0.5, 0.5)
+	results.Visible = false
+
+	-- Each frame's step and when it ended, in a ring with the newest at frameAt.
+	local frameTimes: { number } = table.create(CAPACITY, 0)
+	local frameEnds: { number } = table.create(CAPACITY, -math.huge)
+	local frameAt = 0
+	local window: { number } = {}
+	local status = ""
+	local refreshAt = 0
+
+	-- The mean and 95th-percentile of a list of frame steps, which it sorts.
+	function frameSummary(steps: { number }): (number, number)
+		local n = #steps
+		if n == 0 then
+			return 0, 0
+		end
+		local total = 0
+		for _, t in steps do
+			total += t
+		end
+		table.sort(steps)
+		return total / n, steps[math.max(1, math.ceil(n * 0.95))]
+	end
+
+	-- What the client draws: block parts in near chunks, far chunks' merged
+	-- boxes, and near chunks' collision boxes.
+	function drawCounts(): (number, number, number)
+		local near, far, collision = 0, 0, 0
+		for _ in blocks do
+			near += 1
+		end
+		for _, list in farParts do
+			far += #list
+		end
+		for _, list in collisionParts do
+			collision += #list
+		end
+		return near, far, collision
+	end
+
+	-- A last line for the readout, such as how far the ladder's tour is.
+	function setStressStatus(text: string)
+		status = text
+	end
+
+	-- Shows the ladder's table and the readout with it, or hides the table given nil.
+	function showStressTable(lines: { string }?)
+		results.Text = if lines then table.concat(lines, "\n") else ""
+		results.Visible = lines ~= nil
+		if lines then
+			gui.Enabled = true
+		end
+	end
+
+	workspace.AttributeChanged:Connect(function(name)
+		if name == "StressTest" then
+			gui.Enabled = workspace:GetAttribute("StressTest") ~= nil
+		end
+	end)
+
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if not processed and input.KeyCode == Enum.KeyCode.F3 then
+			gui.Enabled = not gui.Enabled
+		end
+	end)
+
+	RunService.RenderStepped:Connect(function(dt)
+		local now = os.clock()
+		frameAt = frameAt % CAPACITY + 1
+		frameTimes[frameAt], frameEnds[frameAt] = dt, now
+		if not gui.Enabled or now < refreshAt then
+			return
+		end
+		refreshAt = now + REFRESH_SECONDS
+		table.clear(window)
+		for k = 0, CAPACITY - 1 do
+			local i = (frameAt - 1 - k) % CAPACITY + 1
+			if frameEnds[i] < now - WINDOW_SECONDS then
+				break
+			end
+			table.insert(window, frameTimes[i])
+		end
+		local mean, p95 = frameSummary(window)
+		local near, far, collision = drawCounts()
+		readout.Text = string.format(
+			"%5.1f FPS  mean %5.1f ms  p95 %5.1f ms  (last %d s)\nnear parts %d  far boxes %d  collision boxes %d%s",
+			if mean > 0 then 1 / mean else 0,
+			mean * 1000,
+			p95 * 1000,
+			WINDOW_SECONDS,
+			near,
+			far,
+			collision,
+			if status ~= "" then "\n" .. status else ""
+		)
+	end)
+end
+
+-- Stress test: ladder tour --------------------------------------------------
+
+-- While a stress ladder runs, which the server shows in StressStep and
+-- StressSteps, the camera tours every step the same way. The client draws
+-- the step from the near view, then says so on SiteRemotes.Stress, which
+-- starts the server's hold of StressStepSeconds. It spends the first half
+-- of the hold in the near view, at the site's edge where the most standing
+-- blocks lie in near chunks, and the second half in a far overview, from
+-- where every chunk is far. In each view it times the frames after a short
+-- settle, for a row of the table the last step prints to the output and
+-- shows on screen. Then the camera goes back as it was.
+local stressSnapshot
+do
+	-- Seconds a view settles before its frames count, so the switch between
+	-- near and far drawing isn't timed. A short hold settles for less.
+	local SETTLE_SECONDS = 2
+	-- How often a view counts what's drawn while it's timed.
+	local COUNT_SECONDS = 0.25
+	-- The share of the server's hold the two views take, half each, so the
+	-- tour is done before the next step starts.
+	local TOUR_SHARE = 0.95
+	-- Heights, in cells, the near view tries along the site's edges.
+	local NEAR_HEIGHTS = { 3, 8, 14 }
+
+	-- The camera as the tour found it, the step being toured, and the table's rows.
+	local saved: { [string]: any }? = nil
+	local tour: { [string]: any }? = nil
+	local rows: { { [string]: any } } = {}
+
+	local function takeCamera()
+		local camera = workspace.CurrentCamera
+		if saved == nil then
+			saved = {
+				cameraType = camera.CameraType,
+				subject = camera.CameraSubject,
+				cframe = camera.CFrame,
+				fieldOfView = camera.FieldOfView,
+			}
+		end
+		camera.CameraType = Enum.CameraType.Scriptable
+		camera.FieldOfView = 70
+	end
+
+	local function giveCamera()
+		local was = saved
+		if was == nil then
+			return
+		end
+		saved = nil
+		local camera = workspace.CurrentCamera
+		camera.CameraType = was.cameraType
+		camera.FieldOfView = was.fieldOfView
+		camera.CFrame = was.cframe
+		-- The character may have respawned since.
+		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		camera.CameraSubject = humanoid or was.subject
+	end
+
+	-- The tour's two views of the site in play. Near: two cells out from an
+	-- edge and looking in, where the most standing blocks lie in chunks
+	-- within NEAR_STUDS, which updateChunkModes draws block by block. Far:
+	-- over the front left corner, far enough that every chunk is beyond
+	-- FAR_STUDS, with the whole site in view.
+	local function views(): (CFrame, CFrame)
+		local centre = ORIGIN + Vector3.new(bp.sizeX, bp.sizeY, bp.sizeZ) * (STUDS / 2)
+		local standing = table.create(index.chunkCount, 0)
+		local reach = 0
+		for c = 1, index.chunkCount do
+			for i = index.slotStart[c], index.slotStart[c + 1] - 1 do
+				local state = BuildSite.state(mirror, index.slotList[i])
+				if state == State.PLACED or state == State.UNDOING then
+					standing[c] += 1
+				end
+			end
+			if index.slotStart[c + 1] > index.slotStart[c] then
+				reach = math.max(reach, chunkDistance(c, centre))
+			end
+		end
+		local best, nearView = -1, CFrame.new(centre)
+		for edge = 1, 4 do
+			for t = 0, if edge <= 2 then bp.sizeX else bp.sizeZ, 4 do
+				for _, h in NEAR_HEIGHTS do
+					local x, z, dx, dz = t, -2, 0, 1
+					if edge == 2 then
+						x, z, dx, dz = t, bp.sizeZ + 2, 0, -1
+					elseif edge == 3 then
+						x, z, dx, dz = -2, t, 1, 0
+					elseif edge == 4 then
+						x, z, dx, dz = bp.sizeX + 2, t, -1, 0
+					end
+					local eye = ORIGIN + Vector3.new(x, h, z) * STUDS
+					local near = 0
+					for c = 1, index.chunkCount do
+						if standing[c] > 0 and chunkDistance(c, eye) < NEAR_STUDS then
+							near += standing[c]
+						end
+					end
+					if near > best then
+						best = near
+						nearView = CFrame.lookAt(eye, eye + Vector3.new(dx, -0.3, dz))
+					end
+				end
+			end
+		end
+		-- Twice the site's radius fits it in a 60-degree cone, inside Roblox's 70-degree view.
+		local radius = (Vector3.new(bp.sizeX, bp.sizeY, bp.sizeZ) * STUDS).Magnitude / 2
+		local eye = centre + Vector3.new(-0.45, 0.55, -0.7).Unit * math.max(radius * 2, reach + FAR_STUDS + 10)
+		return nearView, CFrame.lookAt(eye, centre)
+	end
+
+	-- Whether the snapshot is drawn, with no far merge or collision rebuild left.
+	local function drawn(): boolean
+		return backlogLeft() == 0 and next(redrawQueue) == nil and next(farDirty) == nil and next(collisionDirty) == nil
+	end
+
+	-- Closes the view in play with a row of the table. A view cut short by
+	-- the next step's snapshot, which has cleared the site, gives what it
+	-- last counted.
+	local function record(run: { [string]: any }, cutShort: boolean?)
+		local mean, p95 = frameSummary(run.samples)
+		local counted = run.counted
+		local near, far, collision
+		if cutShort and counted then
+			near, far, collision = counted[1], counted[2], counted[3]
+		else
+			near, far, collision = drawCounts()
+		end
+		table.insert(rows, {
+			blocks = run.blocks,
+			view = run.phase,
+			near = near,
+			far = far,
+			collision = collision,
+			fps = if mean > 0 then 1 / mean else 0,
+			-- The 5th-percentile frame rate is the 95th-percentile frame's.
+			lowFps = if p95 > 0 then 1 / p95 else 0,
+			p95 = p95 * 1000,
+		})
+	end
+
+	-- The graphics quality the player's settings ask for, as a LocalScript
+	-- can read it: QualityLevel1 is the lowest.
+	local function quality(): string
+		local ok, level = pcall(function()
+			return UserSettings():GetService("UserGameSettings").SavedQualityLevel
+		end)
+		return if ok and typeof(level) == "EnumItem" then level.Name else "unknown"
+	end
+
+	-- The ladder is done: its table to the output and the screen, and the
+	-- camera back.
+	local function finish(run: { [string]: any })
+		local viewport = workspace.CurrentCamera.ViewportSize
+		local lines = {
+			string.format(
+				"Stress ladder: %d steps of %g s, viewport %d x %d, graphics quality %s",
+				run.steps,
+				run.hold,
+				math.floor(viewport.X),
+				math.floor(viewport.Y),
+				quality()
+			),
+			string.format(
+				"%7s  %-4s  %10s  %9s  %15s  %8s  %6s  %6s",
+				"blocks",
+				"view",
+				"near parts",
+				"far boxes",
+				"collision boxes",
+				"mean FPS",
+				"5% FPS",
+				"p95 ms"
+			),
+		}
+		for _, row in rows do
+			table.insert(
+				lines,
+				string.format(
+					"%7d  %-4s  %10d  %9d  %15d  %8.1f  %6.1f  %6.1f",
+					row.blocks,
+					row.view,
+					row.near,
+					row.far,
+					row.collision,
+					row.fps,
+					row.lowFps,
+					row.p95
+				)
+			)
+		end
+		for _, line in lines do
+			print(line)
+		end
+		showStressTable(lines)
+		tour = nil
+		giveCamera()
+		setStressStatus("")
+	end
+
+	-- Called with each snapshot, once it's decoded and before its drawing
+	-- is queued: a ladder step starts its tour from the near view, and a
+	-- site that isn't one ends the tour.
+	function stressSnapshot()
+		local run = tour
+		-- A step that ends before its tour does keeps what it timed.
+		if run and (run.phase == "near" or run.phase == "far") then
+			record(run, true)
+		end
+		local count = StressSite.parse(siteId)
+		local step, steps = workspace:GetAttribute("StressStep"), workspace:GetAttribute("StressSteps")
+		if count == nil or typeof(step) ~= "number" or typeof(steps) ~= "number" then
+			if run then
+				tour = nil
+				giveCamera()
+				setStressStatus("")
+			end
+			return
+		end
+		if step == 1 then
+			table.clear(rows)
+			showStressTable(nil)
+		end
+		takeCamera()
+		local nearView, farView = views()
+		workspace.CurrentCamera.CFrame = nearView
+		tour = {
+			blocks = count,
+			step = step,
+			steps = steps,
+			near = nearView,
+			far = farView,
+			phase = "drawing",
+			phaseAt = os.clock(),
+			-- The server's hold, and each view's share of it, once drawn.
+			hold = StressSite.STEP_SECONDS,
+			view = StressSite.STEP_SECONDS * TOUR_SHARE / 2,
+			samples = {},
+			-- What the view last counted, and when it counts next.
+			counted = nil,
+			countAt = 0,
+			shown = "",
+		}
+	end
+
+	RunService.RenderStepped:Connect(function(dt)
+		local run = tour
+		if run == nil then
+			return
+		end
+		local now = os.clock()
+		if run.phase == "drawing" then
+			if drawn() then
+				-- The server's hold starts now, and so does the near view.
+				run.hold = StressSite.stepSeconds(workspace:GetAttribute("StressStepSeconds"))
+				run.view = run.hold * TOUR_SHARE / 2
+				run.phase, run.phaseAt = "near", now
+				StressRemote:FireServer(siteId)
+			end
+		elseif run.phase ~= "done" then
+			local elapsed = now - run.phaseAt
+			if elapsed >= math.min(SETTLE_SECONDS, run.view / 2) then
+				table.insert(run.samples, dt)
+				if now >= run.countAt then
+					run.countAt = now + COUNT_SECONDS
+					run.counted = { drawCounts() }
+				end
+			end
+			if elapsed >= run.view then
+				record(run)
+				if run.phase == "near" then
+					run.phase, run.phaseAt, run.samples, run.counted, run.countAt = "far", now, {}, nil, 0
+				elseif run.step >= run.steps then
+					finish(run)
+					return
+				else
+					-- Until the server starts the next step.
+					run.phase = "done"
+				end
+			end
+		end
+		workspace.CurrentCamera.CFrame = if run.phase == "near" or run.phase == "drawing" then run.near else run.far
+
+		local left = math.max(0, math.ceil(run.view - (now - run.phaseAt)))
+		local doing = if run.phase == "drawing"
+			then "drawing"
+			elseif run.phase == "done" then "waiting for the next step"
+			else `{run.phase} view, {left} s left`
+		if doing ~= run.shown then
+			run.shown = doing
+			setStressStatus(`{StressSite.name(run.blocks)}, step {run.step} of {run.steps}: {doing}`)
+		end
+	end)
+end
+
 -- State from the server -----------------------------------------------------
 
 StateRemote.OnClientEvent:Connect(function(kind, buf, answers)
@@ -1829,7 +2298,7 @@ StateRemote.OnClientEvent:Connect(function(kind, buf, answers)
 			-- A new site: its blueprint, index, silhouette and sky.
 			resetMirror()
 			siteId = current
-			bp = Blueprint.load(require(blueprints:WaitForChild(siteId)))
+			bp = loadBlueprint(siteId)
 			index = SiteIndex.build(bp, SiteConfig.CHUNK_CELLS)
 			measureChunks()
 			buildSilhouette()
@@ -1840,6 +2309,8 @@ StateRemote.OnClientEvent:Connect(function(kind, buf, answers)
 		SiteCodec.decode(buf, function(s, p, r)
 			BuildSite.setRemote(mirror, s, p, r)
 		end)
+		-- The stress tour places the camera first, since the drawing is queued from it.
+		stressSnapshot()
 		queueSnapshot()
 		return
 	end
