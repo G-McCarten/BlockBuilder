@@ -22,6 +22,7 @@ require("./BossBrain.spec")
 require("./Sim.spec")
 require("./Prediction.spec")
 require("./WorldArc.spec")
+require("./Timelapse.spec")
 require("./Prototype.spec")
 
 local failed = Test.summary()

@@ -78,6 +78,8 @@ Test.case("the server and client boot without errors and build their HUD", funct
 	Test.check(world.realGame:GetService("Workspace"):FindFirstChild("SiteProps"), "hoist pads")
 	Test.equal(hudText(world, player, "Built"), "Laid 0%", "the HUD shows the share laid")
 	Test.equal(embers(world, player), 0, "an empty purse")
+	local silhouette = world.realGame:GetService("Workspace"):FindFirstChild("SiteSilhouette")
+	Test.check(silhouette and #silhouette:GetChildren() > 100, "the finished build's silhouette shows")
 end)
 
 Test.case("holding the mouse over the plinth lays blocks, shown at once and paid", function()
@@ -189,12 +191,22 @@ Test.case("a finished site is announced, then a fresh one replaces it", function
 	end
 	release(world)
 	Test.check(finished, `the site was finished: {hudText(world, player, "Built")}`)
-	Test.equal(blockCount(world), 5928, "every block drawn")
 	for _ = 1, 30 do
 		world:step(1 / 60)
 	end
 	Test.check(string.find(hudText(world, player, "Announce"), "stands", 1, true) ~= nil, "announced")
-	for _ = 1, 31 * 60 do
+	-- The ending: the blocks vanish and rise again over ten seconds.
+	Test.check(blockCount(world) < 5928, `the timelapse hides the build first, {blockCount(world)} showing`)
+	for _ = 1, 5 * 60 do
+		world:step(1 / 60)
+	end
+	local halfway = blockCount(world)
+	Test.check(halfway > 1000 and halfway < 5000, `half way through, {halfway} showing`)
+	for _ = 1, 6 * 60 do
+		world:step(1 / 60)
+	end
+	Test.equal(blockCount(world), 5928, "the whole build, risen again")
+	for _ = 1, 20 * 60 do
 		world:step(1 / 60)
 	end
 	Test.equal(blockCount(world), 0, "a fresh site after the wait")

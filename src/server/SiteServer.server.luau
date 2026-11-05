@@ -7,8 +7,9 @@
 	SiteSession. Clicks arrive on SiteRemotes.Place. Each tick, the delta goes
 	out on SiteRemotes.State with the answers to that tick's clicks after it,
 	which is the order Prediction needs. The boss's view goes out on
-	SiteRemotes.Boss, events on SiteRemotes.Event. A finished site starts
-	again after RESET_SECONDS.
+	SiteRemotes.Boss, events on SiteRemotes.Event. A finished site sends its
+	placement order for the ending's timelapse, and starts again after
+	RESET_SECONDS.
 
 	Players start each site with a bare skill tree and an empty purse, earn
 	run currency for every first placement, and buy skill levels from
@@ -34,6 +35,7 @@ local SiteConfig = require(Shared:WaitForChild("SiteConfig"))
 local SiteSession = require(Shared:WaitForChild("SiteSession"))
 local SkillTuning = require(Shared:WaitForChild("SkillTuning"))
 local Theme = require(Shared:WaitForChild("Theme"))
+local Timelapse = require(Shared:WaitForChild("Timelapse"))
 
 local STUDS = SiteConfig.BLOCK_STUDS
 local RESET_SECONDS = 30
@@ -283,6 +285,8 @@ RunService.Heartbeat:Connect(function(dt)
 
 	if session.finished and resetAt == nil then
 		resetAt = os.clock() + RESET_SECONDS
+		-- The ending: the build rises again, in the order it was placed.
+		StateRemote:FireAllClients("timelapse", Timelapse.encode(Timelapse.order(session.site)), false)
 	end
 	if resetAt and os.clock() >= resetAt then
 		resetAt = nil

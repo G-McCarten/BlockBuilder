@@ -2,6 +2,10 @@
 	SiteClient: draws the graybox site and handles the click, to playtest the
 	verb before the Unharvester fork. SiteServer runs the site.
 
+	The finished build always shows as one faint silhouette, made of the
+	boxes CollisionBoxes merges the whole blueprint into. A finished site
+	plays the ending: the build rises again in the order it was placed.
+
 	The client keeps a mirror of the site, fed by SiteRemotes.State, with
 	Prediction placing the player's own clicks at once. Blocks are pooled
 	Parts that drop in near the camera. READY slots near the player pulse as
@@ -29,6 +33,7 @@ local Access = require(Shared:WaitForChild("Access"))
 local Blueprint = require(Shared:WaitForChild("Blueprint"))
 local BossConfig = require(Shared:WaitForChild("BossConfig"))
 local BuildSite = require(Shared:WaitForChild("BuildSite"))
+local CollisionBoxes = require(Shared:WaitForChild("CollisionBoxes"))
 local Prediction = require(Shared:WaitForChild("Prediction"))
 local SiteCodec = require(Shared:WaitForChild("SiteCodec"))
 local SiteConfig = require(Shared:WaitForChild("SiteConfig"))
@@ -36,6 +41,7 @@ local SiteIndex = require(Shared:WaitForChild("SiteIndex"))
 local SiteRay = require(Shared:WaitForChild("SiteRay"))
 local SkillTuning = require(Shared:WaitForChild("SkillTuning"))
 local Theme = require(Shared:WaitForChild("Theme"))
+local Timelapse = require(Shared:WaitForChild("Timelapse"))
 local WorldArc = require(Shared:WaitForChild("WorldArc"))
 local WorldArcConfig = require(Shared:WaitForChild("WorldArcConfig"))
 
@@ -84,6 +90,38 @@ end
 local function toCells(p: Vector3): (number, number, number)
 	local c = (p - ORIGIN) / STUDS
 	return c.X, c.Y, c.Z
+end
+
+-- The silhouette ------------------------------------------------------------
+
+local TIMELAPSE_SECONDS = 10
+
+do
+	local folder = Instance.new("Folder")
+	folder.Name = "SiteSilhouette"
+	local everyBlock = { progress = table.create(bp.count, 1), rate = table.create(bp.count, 0) }
+	local out = {}
+	for c = 1, index.chunkCount do
+		local n = CollisionBoxes.build(index, everyBlock, c, out)
+		for b = 0, n - 1 do
+			local o = b * 6
+			local x0, y0, z0, x1, y1, z1 = out[o + 1], out[o + 2], out[o + 3], out[o + 4], out[o + 5], out[o + 6]
+			local part = Instance.new("Part")
+			part.Anchored = true
+			part.CanCollide = false
+			part.CanQuery = false
+			part.CanTouch = false
+			part.CastShadow = false
+			part.Material = Enum.Material.SmoothPlastic
+			part.Color = GHOST_COLOR
+			part.Transparency = 0.93
+			-- A hair smaller than its cells, so it hides inside blocks once they stand.
+			part.Size = Vector3.new(x1 - x0, y1 - y0, z1 - z0) * STUDS - Vector3.one * 0.1
+			part.CFrame = CFrame.new(ORIGIN + Vector3.new(x0 + x1, y0 + y1, z0 + z1) * (STUDS / 2))
+			part.Parent = folder
+		end
+	end
+	folder.Parent = workspace
 end
 
 -- Blocks -------------------------------------------------------------------
@@ -250,7 +288,10 @@ local function clearAll()
 	table.clear(redrawQueue)
 end
 
+local timelapse: { order: { number }, started: number, shown: number }? = nil
+
 local function resetMirror()
+	timelapse = nil
 	clearAll()
 	mirror = BuildSite.new(bp)
 	pred = Prediction.new(mirror)
@@ -764,7 +805,13 @@ end)
 -- State from the server -----------------------------------------------------
 
 StateRemote.OnClientEvent:Connect(function(kind, buf, answers)
-	if kind == "snapshot" then
+	if kind == "timelapse" then
+		for _, part in blocks do
+			part.Parent = nil
+		end
+		timelapse = { order = Timelapse.decode(buf), started = os.clock(), shown = 0 }
+		return
+	elseif kind == "snapshot" then
 		resetMirror()
 		SiteCodec.decode(buf, function(s, p, r)
 			BuildSite.setRemote(mirror, s, p, r)
@@ -790,10 +837,29 @@ local ghostClock, arcClock, stuckFor = 0, 0, 0
 
 RunService.RenderStepped:Connect(function(dt)
 	dropsThisFrame = 0
-	for s in redrawQueue do
-		redraw(s)
+	if timelapse then
+		-- The ending: reveal blocks in the order they were placed, eased.
+		local run = timelapse
+		local elapsed = os.clock() - run.started
+		local n = Timelapse.shown(elapsed, TIMELAPSE_SECONDS, #run.order)
+		for i = run.shown + 1, n do
+			local s = run.order[i]
+			local part = blocks[s]
+			if part then
+				part.Parent = blockFolder
+				dropIn(part, s)
+			end
+		end
+		run.shown = n
+		if elapsed >= TIMELAPSE_SECONDS then
+			timelapse = nil
+		end
+	else
+		for s in redrawQueue do
+			redraw(s)
+		end
+		table.clear(redrawQueue)
 	end
-	table.clear(redrawQueue)
 
 	local now = os.clock()
 	for s, from in settingFrom do
