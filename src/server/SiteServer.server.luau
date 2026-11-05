@@ -424,6 +424,22 @@ RunService.Heartbeat:Connect(function(dt)
 		resetAt = os.clock() + RESET_SECONDS
 		-- The ending: the build rises again, in the order it was placed.
 		StateRemote:FireAllClients("timelapse", Timelapse.encode(Timelapse.order(session.site)), false)
+		-- Each player's share of the site's payout, by blocks placed, and
+		-- what they did; the meta would bank it and feed tasks from it.
+		local shares = SiteSession.shares(session)
+		local payout = SiteList[siteNumber].payout or 0
+		for _, player in Players:GetPlayers() do
+			local counts = SiteSession.counts(session, player.UserId)
+			EventRemote:FireClient(player, {
+				{
+					kind = "payout",
+					userId = player.UserId,
+					amount = math.floor(payout * (shares[player.UserId] or 0) + 0.5),
+					placed = counts.placed,
+					shooed = counts.boss_shooed or 0,
+				},
+			})
+		end
 	end
 	if resetAt and os.clock() >= resetAt then
 		resetAt = nil

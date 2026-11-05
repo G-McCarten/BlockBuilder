@@ -706,9 +706,9 @@ local function refreshShop()
 	toolButton.Visible = player:GetAttribute("HasTool") == true
 end
 
-local function say(text: string)
+local function say(text: string, seconds: number?)
 	announce.Text = text
-	announceUntil = os.clock() + 3.5
+	announceUntil = os.clock() + (seconds or 3.5)
 end
 
 local function capitalise(text: string): string
@@ -1059,6 +1059,12 @@ EventRemote.OnClientEvent:Connect(function(events)
 			playTick()
 		elseif kind == "finished" then
 			say(`The {Theme.Site.one} stands! A new one starts soon.`)
+		elseif kind == "payout" and e.userId == me then
+			local shooed = if e.shooed > 0 then `, shooed {Theme.Boss.name} {e.shooed} times` else ""
+			say(
+				`The {siteName(siteId)} stands! You laid {e.placed} {Theme.Block.many}{shooed}, and earned {e.amount} {Theme.MetaCurrency}.`,
+				12
+			)
 		end
 	end
 end)

@@ -33,7 +33,7 @@ What it does:
 - **Ghosts:** the finished build always shows as a faint silhouette. READY slots near you pulse as ghosts.
 - **Collisions:** a block that lands where you stand moves you onto it, and a character stuck for 2 seconds is moved clear.
 - **The boss:** the Rime rises at 15% built. Walk up to it to shoo it away, and break its frost marks (and, on Hard, its ice chains) for a bounty.
-- **The world:** the blizzard thins and night falls as the hold rises. When it's finished, a ten-second timelapse raises the build again in the order it was placed, and 30 seconds later the next site starts, with a bare tree and an empty purse.
+- **The world:** the blizzard thins and night falls as the hold rises. When it's finished, a ten-second timelapse raises the build again in the order it was placed. Each player is told their share of the site's Hearthstones, split by blocks placed, and what they did. 30 seconds later the next site starts, with a bare tree and an empty purse.
 
 Workspace attributes change it while it runs:
 
@@ -63,7 +63,7 @@ It's a sandbox, not the game. It has no meta, saves, eggs, mounts, parties or me
 | Access: stand cells, free surface, working layer (4.4) | `src/shared/Access.luau` | tested |
 | SiteActions: click, batch, chain, ability sweep, power tool, pets (5.1, 5.2) | `src/shared/SiteActions.luau` | tested |
 | BossEffects, BossBrain, BossConfig: the boss at three difficulties (5.3) | `src/shared/Boss*.luau` | tested, tuning provisional |
-| SiteSession: one site's run on the server | `src/shared/SiteSession.luau` | tested |
+| SiteSession: one site's run on the server, with each player's counts for tasks and achievements | `src/shared/SiteSession.luau` | tested |
 | SkillTuning: placeholder skill tree and base stats | `src/shared/SkillTuning.luau` | tuned by the sim |
 | WorldArc, WorldArcConfig: the look by share built | `src/shared/WorldArc*.luau` | tested |
 | Timelapse: the ending's order and pacing (4.7) | `src/shared/Timelapse.luau` | tested |
@@ -72,7 +72,7 @@ It's a sandbox, not the game. It has no meta, saves, eggs, mounts, parties or me
 | BotBrain: a bot that plays a site, for the sim and for testing alone in Studio | `src/shared/BotBrain.luau` | tested |
 | Run sim | `tools/sim/` | tested |
 | Stamp tool, from a script or a Studio model | `tools/stamp_blueprint.luau`, `tools/lib/ModelSource.luau` | tested |
-| SiteList and KindLooks: the sites in order, and each block kind's look | `src/shared/SiteList.luau`, `src/shared/KindLooks.luau` | tested |
+| SiteList and KindLooks: the sites in order with their payouts, and each block kind's look | `src/shared/SiteList.luau`, `src/shared/KindLooks.luau` | tested, payouts provisional |
 | Blueprints: TestHut (508), WoodcuttersLodge (5,928), IceBridge (7,320), Watchtower (8,754), GreatHall (10,746) | `tools/blueprints/` | validated, sizes provisional |
 
 ### How the prototype is tested

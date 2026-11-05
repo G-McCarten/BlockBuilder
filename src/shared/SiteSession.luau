@@ -18,6 +18,8 @@
 	  takeDelta       a SiteCodec delta of what changed since the last one
 	  snapshot        a SiteCodec snapshot, for a player joining
 	  takeEvents      what happened that players should see or hear
+	  counts          what each player has done on the site, for tasks and
+	                  achievements: placed, and every kind of event they caused
 	  shares          each player's share of the finished site's pay
 
 	A click passes when the slot exists, the player isn't smothered, is within
@@ -178,6 +180,7 @@ export type Session = {
 	clock: number,
 	workers: { [number]: Worker },
 	tally: { [number]: number },
+	counts: { [number]: { [string]: number } },
 	bands: { Band },
 	pets: { Pet },
 	nextPetId: number,
@@ -216,6 +219,7 @@ function SiteSession.new(blueprint: any, rules: Rules?, random: (() -> number)?)
 		clock = 0,
 		workers = {},
 		tally = {},
+		counts = {},
 		bands = {},
 		pets = {},
 		nextPetId = 1,
@@ -563,7 +567,28 @@ end
 function SiteSession.takeEvents(session: Session): { Event }
 	local events = session.events
 	session.events = {}
+	-- Every event a player caused counts toward their tasks and achievements.
+	for _, event in events do
+		local userId = event.userId
+		if userId then
+			local mine = session.counts[userId]
+			if mine == nil then
+				mine = {}
+				session.counts[userId] = mine
+			end
+			mine[event.kind] = (mine[event.kind] or 0) + 1
+		end
+	end
 	return events
+end
+
+-- What a player has done on the site: blocks placed for the first time,
+-- and how many of each kind of event they caused, counted as events are
+-- taken.
+function SiteSession.counts(session: Session, userId: number): { [string]: number }
+	local counts = table.clone(session.counts[userId] or {})
+	counts.placed = session.tally[userId] or 0
+	return counts
 end
 
 -- Each player's share of the finished site's pay, by first placements.

@@ -167,6 +167,23 @@ Test.case("a player joining a run in progress starts at the average earned", fun
 	Test.equal(session.workers[3].earned, 5.5, "counted as earned, for the next to join")
 end)
 
+Test.case("counts what each player did, for tasks and achievements", function()
+	local session, bp = hutSession(nil, function()
+		return 0
+	end)
+	session.workers[1].stats.perfectChance = 1
+	SiteSession.request(session, 1, Blueprint.slotAt(bp, 5, 0, 5) :: number)
+	SiteSession.step(session, 1)
+	SiteSession.request(session, 1, Blueprint.slotAt(bp, 6, 0, 5) :: number)
+	SiteSession.useAbility(session, 1)
+	SiteSession.takeEvents(session)
+	local counts = SiteSession.counts(session, 1)
+	Test.equal(counts.perfect, 2, "two perfects")
+	Test.equal(counts.ability, 1, "one ability")
+	Test.equal(counts.placed, 2, "two first placements")
+	Test.equal(SiteSession.counts(session, 9).placed, 0, "a stranger did nothing")
+end)
+
 Test.case("shares follow blocks placed, and survive leaving", function()
 	local session, bp = hutSession()
 	SiteSession.join(session, 2, baseStats())

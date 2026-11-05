@@ -371,7 +371,8 @@ Test.case("a finished site is announced, then a fresh one replaces it", function
 	for _ = 1, 30 do
 		world:step(1 / 60)
 	end
-	Test.check(string.find(hudText(world, player, "Announce"), "stands", 1, true) ~= nil, "announced")
+	local summary = hudText(world, player, "Announce")
+	Test.check(string.find(summary, "earned 100 Hearthstones", 1, true) ~= nil, `the payout, all of it solo: {summary}`)
 	-- The ending: the blocks vanish and rise again over ten seconds.
 	Test.check(blockCount(world) < 5928, `the timelapse hides the build first, {blockCount(world)} showing`)
 	for _ = 1, 5 * 60 do
