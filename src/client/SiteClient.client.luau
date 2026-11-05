@@ -147,6 +147,11 @@ local function setSetting(name: string, value: any)
 	player:SetAttribute(`Setting{name}`, value)
 end
 
+-- The device the player last used, so hints name its buttons.
+local device: Hints.Device = if UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+	then "touch"
+	else "mouse"
+
 -- Looks ---------------------------------------------------------------------
 
 -- Each kind's colour and material, from KindLooks.
@@ -1282,7 +1287,7 @@ do
 		local hint = Hints.pick(context, hintsShown)
 		if hint then
 			hintsShown[hint] = true
-			hintLabel.Text = HintConfig[hint]
+			hintLabel.Text = Hints.words(HintConfig, hint, device)
 			hintUntil = now + 7
 			nextHintAt = now + 9
 		end
@@ -1412,11 +1417,18 @@ do
 	end
 
 	UserInputService.InputBegan:Connect(function(input, processed)
+		local kind = input.UserInputType
+		if kind == Enum.UserInputType.Touch then
+			device = "touch"
+		elseif kind and string.sub(kind.Name, 1, 7) == "Gamepad" then
+			device = "gamepad"
+		elseif kind == Enum.UserInputType.Keyboard or kind == Enum.UserInputType.MouseButton1 then
+			device = "mouse"
+		end
 		-- A click or tap a button took, or the thumbstick's touch, never places.
 		if processed then
 			return
 		end
-		local kind = input.UserInputType
 		if kind == Enum.UserInputType.MouseButton1 or input.KeyCode == Enum.KeyCode.ButtonR2 then
 			holding, holdPoint, holdTouch = true, nil, nil
 			tryPlace(aimedSlot())

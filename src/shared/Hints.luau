@@ -4,7 +4,8 @@
 
 	pick(context, shown) gives the first hint, in order of urgency, whose
 	moment has come and that hasn't been shown yet, or nil. HintConfig words
-	each one.
+	each one, and words(config, id, device) picks a hint's words for the
+	device the player is using.
 ]]
 
 local Hints = {}
@@ -85,6 +86,18 @@ function Hints.pick(context: Context, shown: { [string]: boolean }): string?
 		end
 	end
 	return nil
+end
+
+export type Device = "mouse" | "touch" | "gamepad"
+
+-- The words for hint id on a device. A hint that names no button has one
+-- string for every device; one that does has words for each.
+function Hints.words(config: { [string]: any }, id: string, device: Device): string
+	local words = config[id]
+	if type(words) == "table" then
+		return words[device] or words.mouse
+	end
+	return words
 end
 
 return Hints

@@ -181,6 +181,23 @@ Test.case("the server and client boot without errors and build their HUD", funct
 	Test.check(string.find(hudText(world, player, "Hint"), "Click a glowing ghost", 1, true) ~= nil, "the first hint")
 end)
 
+Test.case("hints name the buttons of the device in use", function()
+	local phone, phonePlayer = boot(nil, "phone")
+	for _ = 1, 20 do
+		phone:step(1 / 60)
+	end
+	local words = hudText(phone, phonePlayer, "Hint")
+	Test.check(string.find(words, "Tap a glowing ghost", 1, true) ~= nil, `on a phone: {words}`)
+	local pad, padPlayer = boot()
+	pad:input("began", { UserInputType = Enum.UserInputType.Gamepad1, KeyCode = Enum.KeyCode.ButtonX })
+	for _ = 1, 20 do
+		pad:step(1 / 60)
+	end
+	words = hudText(pad, padPlayer, "Hint")
+	Test.check(string.find(words, "press R2", 1, true) ~= nil, `on a gamepad: {words}`)
+	Test.equal(#phone.errors + #pad.errors, 0, errorsOf(phone) .. errorsOf(pad))
+end)
+
 Test.case("the Site attribute starts any site, and its blocks lay", function()
 	local world, player = boot({ Site = "GreatHall", Batch = 30, Cooldown = 0.1 })
 	Test.equal(hudText(world, player, "Built"), "Great Hall: laid 0%", "the hall")

@@ -31,7 +31,7 @@ Controls:
 
 What it does:
 
-- **Hints:** a tip at the bottom of the screen when its moment comes: how to lay, when you can afford a skill, the boss and its works, the crew, and the hoist pads.
+- **Hints:** a tip at the bottom of the screen when its moment comes: how to lay, when you can afford a skill, the boss and its works, the crew, and the hoist pads. A tip that names a button names the one on the device you last used: mouse and keyboard, touch, or gamepad.
 - **Blocks:** your clicks show at once and roll back if the server refuses them. Blocks near the camera drop in with a small squash and a puff of dust, and a tick climbs in pitch during a fast chain.
 - **Ghosts:** the finished build always shows as a faint silhouette. READY slots near you pulse as ghosts, and the one you'd lay shows brighter than the rest.
 - **Collisions:** a block that lands where you stand moves you onto it, and a character stuck for 2 seconds is moved clear.
