@@ -16,6 +16,55 @@ function Sites.lodge(): Blueprint.Blueprint
 	return Blueprint.load(require("../../src/shared/Blueprints/WoodcuttersLodge"))
 end
 
+-- Errors unless every slot of the site obeys BuildSite's rules: unmet counts
+-- the supports not placed, LOCKED slots have no progress or rate, nothing
+-- placed floats, and the active list and placedCount agree with the slots.
+function Sites.checkRules(site: BuildSite.Site)
+	local bp = site.blueprint
+	local placed, active = 0, 0
+	for s = 1, site.count do
+		local missing = 0
+		for i = bp.supportStart[s], bp.supportStart[s + 1] - 1 do
+			if not BuildSite.isPlaced(site, bp.supportList[i]) then
+				missing += 1
+			end
+		end
+		if site.unmet[s] ~= missing then
+			error(`slot {s}: unmet {site.unmet[s]}, but {missing} supports aren't placed`)
+		end
+		if missing > 0 and (site.progress[s] ~= 0 or site.rate[s] ~= 0) then
+			error(`slot {s}: LOCKED with progress {site.progress[s]} and rate {site.rate[s]}`)
+		end
+		if BuildSite.isPlaced(site, s) then
+			placed += 1
+		end
+		if site.rate[s] ~= 0 then
+			active += 1
+		end
+		if (site.activeAt[s] ~= 0) ~= (site.rate[s] ~= 0) then
+			error(`slot {s}: active list disagrees with rate {site.rate[s]}`)
+		end
+		if site.progress[s] < 0 or site.progress[s] > 1 then
+			error(`slot {s}: progress {site.progress[s]} out of 0..1`)
+		end
+	end
+	if site.placedCount ~= placed then
+		error(`placedCount {site.placedCount}, but {placed} slots are placed`)
+	end
+	if site.activeCount ~= active then
+		error(`activeCount {site.activeCount}, but {active} slots have a rate`)
+	end
+end
+
+-- A copy of a site's slot state, for comparing before and after.
+function Sites.snapshot(site: BuildSite.Site): { progress: { number }, rate: { number }, shield: { number } }
+	return {
+		progress = table.clone(site.progress),
+		rate = table.clone(site.rate),
+		shield = table.clone(site.shield),
+	}
+end
+
 -- A site with every block placed.
 function Sites.finished(bp: Blueprint.Blueprint): BuildSite.Site
 	local site = BuildSite.new(bp)

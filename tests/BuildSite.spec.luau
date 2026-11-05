@@ -137,6 +137,20 @@ Test.case("shields: HAND_ONLY takes only a hand, BLOCKED takes nothing", functio
 	Test.check(not BuildSite.place(site, 4, Cause.HAND, 1), "nothing places a BLOCKED slot")
 end)
 
+Test.case("shield flags combine and lift one at a time", function()
+	local _, site = column()
+	BuildSite.flagShield(site, 1, Shield.HAND_ONLY, true)
+	BuildSite.flagShield(site, 1, Shield.BLOCKED, true)
+	Test.equal(site.shield[1], 3, "both flags")
+	Test.check(not BuildSite.canPlace(site, 1, Cause.HAND), "blocked, even for a hand")
+	BuildSite.flagShield(site, 1, Shield.BLOCKED, false)
+	Test.equal(site.shield[1], Shield.HAND_ONLY, "lifting BLOCKED keeps HAND_ONLY")
+	Test.check(BuildSite.canPlace(site, 1, Cause.HAND), "a hand can again")
+	Test.check(not BuildSite.canPlace(site, 1, Cause.PET, 1), "a pet still can't")
+	BuildSite.flagShield(site, 1, Shield.BLOCKED, false)
+	Test.equal(site.shield[1], Shield.HAND_ONLY, "lifting a flag that isn't raised changes nothing")
+end)
+
 Test.case("slots that don't exist are refused", function()
 	local _, site = column()
 	for _, s in { 0, -1, 5, 1.5, 0 / 0, math.huge } do
@@ -213,8 +227,11 @@ local function mCanPlace(m: Model, s: number, cause: number): boolean
 	if state ~= State.READY and state ~= State.SETTING then
 		return false
 	end
+	-- Shields are 0 none, 1 hand only, 2 blocked, 3 both.
 	local shield = m.shield[s]
-	return shield ~= Shield.BLOCKED and not (shield == Shield.HAND_ONLY and cause ~= Cause.HAND)
+	local blocked = shield == 2 or shield == 3
+	local handOnly = shield == 1 or shield == 3
+	return not blocked and not (handOnly and cause ~= Cause.HAND)
 end
 
 local function mCanUndo(m: Model, s: number): boolean
@@ -464,9 +481,24 @@ local function play(bp: Blueprint.Blueprint, seed: number, ops: number, fullEver
 			name = "shield"
 			local s = rng:int(1, count)
 			local r = rng:next()
-			local shield = if r < 0.7 then Shield.NONE elseif r < 0.9 then Shield.HAND_ONLY else Shield.BLOCKED
-			BuildSite.setShield(site, s, shield)
-			m.shield[s] = shield
+			if r < 0.5 then
+				local shield = if r < 0.35 then Shield.NONE elseif r < 0.45 then Shield.HAND_ONLY else Shield.BLOCKED
+				BuildSite.setShield(site, s, shield)
+				m.shield[s] = shield
+			else
+				-- Raise or lower one flag, as boss effects do.
+				local flag = if rng:next() < 0.5 then 1 else 2
+				local on = rng:next() < 0.4
+				BuildSite.flagShield(site, s, flag, on)
+				local hand = m.shield[s] == 1 or m.shield[s] == 3
+				local blocked = m.shield[s] == 2 or m.shield[s] == 3
+				if flag == 1 then
+					hand = on
+				else
+					blocked = on
+				end
+				m.shield[s] = (if hand then 1 else 0) + (if blocked then 2 else 0)
+			end
 		else
 			name = "step"
 			for i = 1, site.activeCount do

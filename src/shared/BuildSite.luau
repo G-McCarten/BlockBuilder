@@ -73,6 +73,7 @@ BuildSite.Cause = table.freeze({
 	BOSS = 7,
 })
 
+-- Shield flags combine, so one effect can lift its flag without clearing another's.
 local HAND_ONLY, BLOCKED = 1, 2
 BuildSite.Shield = table.freeze({
 	NONE = 0,
@@ -268,7 +269,7 @@ function BuildSite.canPlace(site: Site, s: number, cause: number): boolean
 		return false
 	end
 	local shield = site.shield[s]
-	if shield == BLOCKED or (shield == HAND_ONLY and cause ~= HAND) then
+	if bit32.btest(shield, BLOCKED) or (bit32.btest(shield, HAND_ONLY) and cause ~= HAND) then
 		return false
 	end
 	return true
@@ -337,8 +338,15 @@ function BuildSite.undo(site: Site, s: number, speed: number, cause: number, cau
 	return true
 end
 
+-- Sets the slot's shield flags outright.
 function BuildSite.setShield(site: Site, s: number, shield: number)
 	site.shield[s] = shield
+end
+
+-- Raises or lowers one shield flag, leaving the others as they are.
+function BuildSite.flagShield(site: Site, s: number, flag: number, on: boolean)
+	local shield = site.shield[s]
+	site.shield[s] = if on then bit32.bor(shield, flag) else bit32.band(shield, bit32.bnot(flag))
 end
 
 -- Advances every active slot by dt seconds.

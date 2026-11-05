@@ -1,13 +1,15 @@
 --[[
-	stamp_blueprint: builds a blueprint from a script-generated source,
+	stamp_blueprint: builds a blueprint from a script or a Studio model,
 	validates it, and writes src/shared/Blueprints/<Name>.luau.
 
 	  lune run tools/stamp_blueprint <Name>          build, validate, write
 	  lune run tools/stamp_blueprint <Name> --check  fail if the file is missing or stale
 
-	Run from the repo root. tools/blueprints/<Name>.luau returns a
-	Blueprint.Source. Stamping from a Studio Model of grid-aligned parts is
-	still to come.
+	Run from the repo root. The source is one of:
+
+	  tools/blueprints/<Name>.luau           a script returning a Blueprint.Source
+	  tools/blueprints/<Name>.rbxm or .rbxmx  a Studio model of grid-aligned
+	                                          parts, read by tools/lib/ModelSource
 
 	Reach is checked with SiteConfig's base grasp and headroom.
 ]]
@@ -19,6 +21,7 @@ local process = require("@lune/process")
 local Blueprint = require("../src/shared/Blueprint")
 local BlueprintValidator = require("../src/shared/BlueprintValidator")
 local SiteConfig = require("../src/shared/SiteConfig")
+local ModelSource = require("./lib/ModelSource")
 
 local name = process.args[1]
 local check = process.args[2] == "--check"
@@ -27,14 +30,28 @@ if name == nil or not string.match(name, "^[%w_]+$") then
 	process.exit(2)
 end
 
-local sourcePath = `tools/blueprints/{name}.luau`
 local outPath = `src/shared/Blueprints/{name}.luau`
-if not fs.isFile(sourcePath) then
-	print(`no source at {sourcePath}`)
+local sourcePath, source
+for _, ext in { "luau", "rbxm", "rbxmx" } do
+	local path = `tools/blueprints/{name}.{ext}`
+	if fs.isFile(path) then
+		if sourcePath then
+			print(`both {sourcePath} and {path} exist: keep one`)
+			process.exit(2)
+		end
+		sourcePath = path
+		if ext == "luau" then
+			source = luau.load(fs.readFile(path), { debugName = path })()
+		else
+			source = ModelSource.fromContents(fs.readFile(path), name, SiteConfig.BLOCK_STUDS)
+		end
+	end
+end
+if sourcePath == nil then
+	print(`no source for {name}: expected tools/blueprints/{name}.luau, .rbxm or .rbxmx`)
 	process.exit(2)
 end
 
-local source = luau.load(fs.readFile(sourcePath), { debugName = sourcePath })()
 local bp = Blueprint.build(source)
 
 local report = BlueprintValidator.validate(bp, {

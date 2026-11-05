@@ -9,8 +9,13 @@
 	  slots of chunk c  slotList[slotStart[c] .. slotStart[c + 1] - 1]
 	  chunkOf[s]        the chunk holding slot s
 
-	nearest() finds the slots closest to a point that pass a test. Batch
-	placement, auto-aim and pets use it, all in cell space (SiteConfig).
+	Queries, all in cell space (SiteConfig), each keeping only slots for which
+	accept(slot) is true:
+
+	  nearest  the closest slots to a point, in order. Batch placement,
+	           auto-aim and pets use it.
+	  within   every slot whose centre is within a radius of a point
+	  inBox    every slot whose centre is inside a box, for bands and sections
 ]]
 
 local SiteIndex = {}
@@ -155,6 +160,76 @@ function SiteIndex.nearest(
 		end
 	end
 	return found
+end
+
+-- Writes into out, in no particular order, every slot whose centre lies inside
+-- the box from (x0, y0, z0) inclusive to (x1, y1, z1) exclusive and for which
+-- accept(slot) is true. Returns how many it wrote.
+function SiteIndex.inBox(
+	index: Index,
+	x0: number,
+	y0: number,
+	z0: number,
+	x1: number,
+	y1: number,
+	z1: number,
+	accept: (slot: number) -> boolean,
+	out: { number }
+): number
+	local bp = index.blueprint
+	local x, y, z = bp.x, bp.y, bp.z
+	local n = index.chunkCells
+	local nx, nz = index.nx, index.nz
+	local slotStart, slotList = index.slotStart, index.slotList
+	local found = 0
+	-- Slot centres sit half a cell in, so a slot is inside when its cell is in [ceil(a - 0.5), ceil(b - 0.5)).
+	local cx0 = math.max(0, math.ceil(x0 - 0.5) // n)
+	local cx1 = math.min(nx - 1, (math.ceil(x1 - 0.5) - 1) // n)
+	local cy0 = math.max(0, math.ceil(y0 - 0.5) // n)
+	local cy1 = math.min(index.ny - 1, (math.ceil(y1 - 0.5) - 1) // n)
+	local cz0 = math.max(0, math.ceil(z0 - 0.5) // n)
+	local cz1 = math.min(nz - 1, (math.ceil(z1 - 0.5) - 1) // n)
+	for cy = cy0, cy1 do
+		for cz = cz0, cz1 do
+			for cx = cx0, cx1 do
+				local c = 1 + cx + nx * (cz + nz * cy)
+				for i = slotStart[c], slotStart[c + 1] - 1 do
+					local s = slotList[i]
+					local sx, sy, sz = x[s] + 0.5, y[s] + 0.5, z[s] + 0.5
+					if sx >= x0 and sx < x1 and sy >= y0 and sy < y1 and sz >= z0 and sz < z1 and accept(s) then
+						found += 1
+						out[found] = s
+					end
+				end
+			end
+		end
+	end
+	return found
+end
+
+-- Writes into out, in no particular order, every slot whose centre lies within
+-- radius of (px, py, pz) and for which accept(slot) is true. Returns how many.
+function SiteIndex.within(
+	index: Index,
+	px: number,
+	py: number,
+	pz: number,
+	radius: number,
+	accept: (slot: number) -> boolean,
+	out: { number }
+): number
+	if not (radius >= 0) then
+		return 0
+	end
+	local bp = index.blueprint
+	local x, y, z = bp.x, bp.y, bp.z
+	local r2 = radius * radius
+	-- The box's far faces are exclusive, so widen it a hair to keep centres exactly radius away.
+	local far = radius + 1e-6
+	return SiteIndex.inBox(index, px - radius, py - radius, pz - radius, px + far, py + far, pz + far, function(s)
+		local dx, dy, dz = x[s] + 0.5 - px, y[s] + 0.5 - py, z[s] + 0.5 - pz
+		return dx * dx + dy * dy + dz * dz <= r2 and accept(s)
+	end, out)
 end
 
 return SiteIndex
