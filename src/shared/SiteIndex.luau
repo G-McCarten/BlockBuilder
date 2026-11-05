@@ -12,8 +12,8 @@
 	Queries, all in cell space (SiteConfig), each keeping only slots for which
 	accept(slot) is true:
 
-	  nearest  the closest slots to a point, in order. Batch placement,
-	           auto-aim and pets use it.
+	  nearest  the closest slots to a point, in order. A click's batch,
+	           auto-aim, bots and pets use it.
 	  within   every slot whose centre is within a radius of a point
 	  inBox    every slot whose centre is inside a box, for the boss's
 	           shields and sections
@@ -188,8 +188,7 @@ local function chunkGap2(n: number, cx: number, cy: number, cz: number, px: numb
 end
 
 -- Offers chunk (cx, cy, cz)'s slots to the list of the found best, unless
--- none of them could make it. A fence, f2 short of math.huge, also keeps only
--- slots within sqrt(f2) of (fx, fy, fz). Returns how many are found now.
+-- none of them could make it. Returns how many are found now.
 local function nearestInChunk(
 	index: Index,
 	cx: number,
@@ -199,23 +198,14 @@ local function nearestInChunk(
 	py: number,
 	pz: number,
 	r2: number,
-	fx: number,
-	fy: number,
-	fz: number,
-	f2: number,
 	accept: (slot: number) -> boolean,
 	maxCount: number,
 	out: { number },
 	found: number
 ): number
 	local bestDist = index.bestDist
-	local n = index.chunkCells
-	local gap2 = chunkGap2(n, cx, cy, cz, px, py, pz)
+	local gap2 = chunkGap2(index.chunkCells, cx, cy, cz, px, py, pz)
 	if gap2 > r2 or (found >= maxCount and gap2 > bestDist[found]) then
-		return found
-	end
-	local fenced = f2 ~= math.huge
-	if fenced and chunkGap2(n, cx, cy, cz, fx, fy, fz) > f2 then
 		return found
 	end
 	local slotList = index.slotList
@@ -227,25 +217,18 @@ local function nearestInChunk(
 		if d2 <= r2 then
 			local s = slotList[i]
 			local worst = bestDist[found]
-			if found < maxCount or d2 < worst or (d2 == worst and s < out[found]) then
-				local inside = true
-				if fenced then
-					local ex, ey, ez = centreX[i] - fx, centreY[i] - fy, centreZ[i] - fz
-					inside = ex * ex + ey * ey + ez * ez <= f2
+			if (found < maxCount or d2 < worst or (d2 == worst and s < out[found])) and accept(s) then
+				-- Insert in order, dropping the farthest when full.
+				local j = if found < maxCount then found + 1 else found
+				while j > 1 and (bestDist[j - 1] > d2 or (bestDist[j - 1] == d2 and out[j - 1] > s)) do
+					bestDist[j] = bestDist[j - 1]
+					out[j] = out[j - 1]
+					j -= 1
 				end
-				if inside and accept(s) then
-					-- Insert in order, dropping the farthest when full.
-					local j = if found < maxCount then found + 1 else found
-					while j > 1 and (bestDist[j - 1] > d2 or (bestDist[j - 1] == d2 and out[j - 1] > s)) do
-						bestDist[j] = bestDist[j - 1]
-						out[j] = out[j - 1]
-						j -= 1
-					end
-					bestDist[j] = d2
-					out[j] = s
-					if found < maxCount then
-						found += 1
-					end
+				bestDist[j] = d2
+				out[j] = s
+				if found < maxCount then
+					found += 1
 				end
 			end
 		end
@@ -253,18 +236,22 @@ local function nearestInChunk(
 	return found
 end
 
--- nearest() and nearestFenced(), with f2 the fence's radius squared, or
--- math.huge for none.
-local function nearestQuery(
+-- Writes into out, nearest first, up to maxCount slots whose centre lies
+-- within radius of (px, py, pz) and for which accept(slot) is true. Returns how
+-- many it wrote. Equal distances keep the lower slot first.
+--
+-- The answer is the best maxCount by distance, then slot, so the order chunks
+-- are read in can't change it. They are read in rings outward from the
+-- point's chunk, so a search stops once no further ring can hold anything
+-- better than what it has, and skips chunks that can't. accept is called only
+-- for slots in range that would make the list, so it must have no side
+-- effects.
+function SiteIndex.nearest(
 	index: Index,
 	px: number,
 	py: number,
 	pz: number,
 	radius: number,
-	fx: number,
-	fy: number,
-	fz: number,
-	f2: number,
 	accept: (slot: number) -> boolean,
 	maxCount: number,
 	out: { number }
@@ -309,121 +296,21 @@ local function nearestQuery(
 				if yEdge or cz == qz - k or cz == qz + k then
 					-- On the ring's top, bottom or sides: the whole row.
 					for cx = xlo, xhi do
-						found = nearestInChunk(
-							index,
-							cx,
-							cy,
-							cz,
-							px,
-							py,
-							pz,
-							r2,
-							fx,
-							fy,
-							fz,
-							f2,
-							accept,
-							maxCount,
-							out,
-							found
-						)
+						found = nearestInChunk(index, cx, cy, cz, px, py, pz, r2, accept, maxCount, out, found)
 					end
 				else
 					-- Inside them: only the row's two ends are on the ring.
 					if qx - k >= cx0 then
-						found = nearestInChunk(
-							index,
-							qx - k,
-							cy,
-							cz,
-							px,
-							py,
-							pz,
-							r2,
-							fx,
-							fy,
-							fz,
-							f2,
-							accept,
-							maxCount,
-							out,
-							found
-						)
+						found = nearestInChunk(index, qx - k, cy, cz, px, py, pz, r2, accept, maxCount, out, found)
 					end
 					if qx + k <= cx1 then
-						found = nearestInChunk(
-							index,
-							qx + k,
-							cy,
-							cz,
-							px,
-							py,
-							pz,
-							r2,
-							fx,
-							fy,
-							fz,
-							f2,
-							accept,
-							maxCount,
-							out,
-							found
-						)
+						found = nearestInChunk(index, qx + k, cy, cz, px, py, pz, r2, accept, maxCount, out, found)
 					end
 				end
 			end
 		end
 	end
 	return found
-end
-
--- Writes into out, nearest first, up to maxCount slots whose centre lies
--- within radius of (px, py, pz) and for which accept(slot) is true. Returns how
--- many it wrote. Equal distances keep the lower slot first.
---
--- The answer is the best maxCount by distance, then slot, so the order chunks
--- are read in can't change it. They are read in rings outward from the
--- point's chunk, so a search stops once no further ring can hold anything
--- better than what it has, and skips chunks that can't. accept is called only
--- for slots in range that would make the list, so it must have no side
--- effects.
-function SiteIndex.nearest(
-	index: Index,
-	px: number,
-	py: number,
-	pz: number,
-	radius: number,
-	accept: (slot: number) -> boolean,
-	maxCount: number,
-	out: { number }
-): number
-	return nearestQuery(index, px, py, pz, radius, px, py, pz, math.huge, accept, maxCount, out)
-end
-
--- nearest(), keeping only slots whose centre also lies within fence of
--- (fx, fy, fz), so chunks outside that sphere are skipped too. A click's
--- batch uses it: the slots nearest the aimed one, among those in the
--- player's grasp. The fence's test is a slot's squared distance from
--- (fx, fy, fz), centre minus point on each axis, against fence * fence.
-function SiteIndex.nearestFenced(
-	index: Index,
-	px: number,
-	py: number,
-	pz: number,
-	radius: number,
-	fx: number,
-	fy: number,
-	fz: number,
-	fence: number,
-	accept: (slot: number) -> boolean,
-	maxCount: number,
-	out: { number }
-): number
-	if not (fence >= 0) then
-		return 0
-	end
-	-- math.huge squared is math.huge, which nearestQuery reads as no fence: all the same.
-	return nearestQuery(index, px, py, pz, radius, fx, fy, fz, fence * fence, accept, maxCount, out)
 end
 
 -- Writes into out, in no particular order, every slot whose centre lies inside

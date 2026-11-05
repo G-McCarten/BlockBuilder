@@ -71,8 +71,9 @@ local function plainNearest(index, px, py, pz, radius, accept, maxCount, out): n
 	return found
 end
 
--- A click, with its batch found by plainNearest and a grasp test in accept.
-local function plainHand(site, index, slot, px, py, pz, stats, causer, random, placed): (number, number)
+-- A click, with its batch found by plainNearest: the slots nearest the
+-- aimed one, out to grasp plus half the batch.
+local function plainHand(site, index, slot, stats, causer, random, placed): (number, number)
 	if not BuildSite.place(site, slot, Cause.HAND, causer) then
 		return 0, 0
 	end
@@ -80,15 +81,10 @@ local function plainHand(site, index, slot, px, py, pz, stats, causer, random, p
 	local count = 1
 	if stats.batch > 1 then
 		local bp = index.blueprint
-		local grasp2 = stats.grasp * stats.grasp
 		local cx, cy, cz = bp.x[slot] + 0.5, bp.y[slot] + 0.5, bp.z[slot] + 0.5
 		local batch = {}
-		local n = plainNearest(index, cx, cy, cz, 2 * stats.grasp, function(s)
-			if not BuildSite.canPlace(site, s, Cause.BATCH) then
-				return false
-			end
-			local dx, dy, dz = bp.x[s] + 0.5 - px, bp.y[s] + 0.5 - py, bp.z[s] + 0.5 - pz
-			return dx * dx + dy * dy + dz * dz <= grasp2
+		local n = plainNearest(index, cx, cy, cz, stats.grasp + stats.batch / 2, function(s)
+			return BuildSite.canPlace(site, s, Cause.BATCH)
 		end, stats.batch - 1, batch)
 		for i = 1, n do
 			if BuildSite.place(site, batch[i], Cause.BATCH, causer) then
@@ -380,23 +376,6 @@ Test.case("nearest picks what the full scan did, from anywhere and at any range"
 				local m = plainNearest(index, px, py, pz, radius, accept, maxCount, want)
 				Test.equal(n, m, `{bp.name}: how many near ({px}, {py}, {pz}) within {radius}`)
 				sameList(out, want, n, `{bp.name}: nearest`)
-
-				-- The same search fenced to a sphere around a second point, against
-				-- the full scan with the fence's test in accept.
-				local fx, fy, fz = px + rng:range(-6, 6), py + rng:range(-3, 3), pz + rng:range(-6, 6)
-				if rng:next() < 0.5 then
-					-- On a cell's centre, so whole-number fences pass exactly through others'.
-					fx, fy, fz = math.floor(fx) + 0.5, math.floor(fy) + 0.5, math.floor(fz) + 0.5
-				end
-				local fence = ({ 0, 1, 2, 2.5, 3, 5, 9, math.huge })[rng:int(1, 8)]
-				local f2 = fence * fence
-				n = SiteIndex.nearestFenced(index, px, py, pz, radius, fx, fy, fz, fence, accept, maxCount, out)
-				m = plainNearest(index, px, py, pz, radius, function(s)
-					local dx, dy, dz = bp.x[s] + 0.5 - fx, bp.y[s] + 0.5 - fy, bp.z[s] + 0.5 - fz
-					return dx * dx + dy * dy + dz * dz <= f2 and accept(s)
-				end, maxCount, want)
-				Test.equal(n, m, `{bp.name}: how many fenced within {fence} of ({fx}, {fy}, {fz})`)
-				sameList(out, want, n, `{bp.name}: fenced nearest`)
 			end
 		end
 	end
@@ -411,23 +390,21 @@ Test.case("a click places what it did with its batch found by the full scan", fu
 			local seed = 300 * k + trial
 			local share = rng:range(0.05, 0.9)
 			local site, twin = scene(bp, seed, share), scene(bp, seed, share)
+			-- Batches from one block to dozens, so some search far past the grasp.
 			local stats = {
 				grasp = rng:range(1, 8),
-				batch = rng:int(1, 9),
+				batch = if rng:next() < 0.5 then rng:int(1, 9) else rng:int(10, 64),
 				chainChance = if rng:next() < 0.5 then 0 else 0.4,
 				chainRadius = rng:range(1, 2.5),
 				setRate = 1,
 			}
 			for _ = 1, 6 do
 				local slot = rng:int(1, bp.count)
-				local px = bp.x[slot] + rng:range(-stats.grasp, stats.grasp + 1)
-				local py = bp.y[slot] + rng:range(-1, 3)
-				local pz = bp.z[slot] + rng:range(-stats.grasp, stats.grasp + 1)
 				local a, b = Rng.new(seed), Rng.new(seed)
-				local n, started = SiteActions.hand(site, index, slot, px, py, pz, stats, 3, function()
+				local n, started = SiteActions.hand(site, index, slot, stats, 3, function()
 					return a:next()
 				end, placed)
-				local m, wantStarted = plainHand(twin, index, slot, px, py, pz, stats, 3, function()
+				local m, wantStarted = plainHand(twin, index, slot, stats, 3, function()
 					return b:next()
 				end, want)
 				Test.equal(n, m, `{bp.name} trial {trial}: blocks a click placed`)
