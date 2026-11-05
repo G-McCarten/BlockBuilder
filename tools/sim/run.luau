@@ -11,7 +11,7 @@
 	Options: --site <Name>|all, --players <n>, --boss Normal|Hard|Nightmare|all
 	(all is no boss and then each difficulty), --seeds <n>, --seed <first
 	seed>, --coop, --tool, --pets <n>, --max <minutes>, --share <party share
-	of pay>, --bought.
+	of pay>, --buy cheapest|value (how bots choose skills), --bought.
 
 	Tables, averaged over the seeds (with one seed, that run's own), by
 	minute every --every <n> minutes (default 5):
@@ -73,6 +73,12 @@ for _, name in bossNames do
 	end
 end
 
+local buying = option("--buy") or "cheapest"
+if buying ~= "cheapest" and buying ~= "value" then
+	print(`no way of buying called {buying}: cheapest or value`)
+	process.exit(2)
+end
+
 local seeds = tonumber(option("--seeds") or "1") or 1
 local firstSeed = tonumber(option("--seed") or "1") or 1
 local every = math.max(1, tonumber(option("--every") or "5") or 5)
@@ -90,6 +96,7 @@ local base = {
 	pets = tonumber(option("--pets") or "0"),
 	maxMinutes = tonumber(option("--max") or "180"),
 	partyShare = tonumber(option("--share") or ""),
+	buying = buying,
 }
 
 local function percent(share: number): string

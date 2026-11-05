@@ -1,5 +1,7 @@
 local BossConfig = require("../src/shared/BossConfig")
+local BotBrain = require("../src/shared/BotBrain")
 local Sim = require("../tools/sim/Sim")
+local SkillTuning = require("../src/shared/SkillTuning")
 local Sites = require("./lib/Sites")
 local Test = require("./lib/Test")
 
@@ -126,6 +128,33 @@ Test.case("summarise averages runs, minute by minute", function()
 			Test.check(cell.share > 0 and cell.share <= 1, `{nodeId} {level}: share {cell.share}`)
 		end
 	end
+end)
+
+Test.case("bots buy cheapest first by default, or by value", function()
+	local hut = Sites.hut()
+	local default = Sim.run({ blueprint = hut, seed = 3 })
+	local cheapest = Sim.run({ blueprint = hut, seed = 3, buying = "cheapest" })
+	Test.equal(default.minutes, cheapest.minutes, "the default is cheapest first")
+	Test.check(string.find(default.bought[1], "^setTime") ~= nil, `cheapest first starts with {default.bought[1]}`)
+
+	local value = Sim.run({ blueprint = hut, seed = 3, buying = "value" })
+	Test.check(value.finished, "a bot buying by value finishes")
+	Test.check(string.find(value.bought[1], "^batch") ~= nil, `by value it starts with {value.bought[1]}`)
+	Test.check(value.minutes < default.minutes, `by value {value.minutes}, cheapest first {default.minutes}`)
+end)
+
+Test.case("the value model counts batch, chains, perfect and the ability, not setTime", function()
+	local function earning(levels: { [string]: number }): number
+		local ability = (levels[SkillTuning.abilityNode] or 0) >= 1
+		return BotBrain.earning(SkillTuning.stats(levels), ability, 6)
+	end
+	local base = earning({})
+	Test.check(base > 0, "earns something")
+	for _, node in { "batch", "chain", "perfect", "crew" } do
+		Test.check(earning({ [node] = 1 }) > base, `{node} adds to earning`)
+	end
+	Test.equal(earning({ setTime = 2 }), base, "setTime adds nothing")
+	Test.check(earning({ crew = 2 }) > earning({ crew = 1 }), "a wider, longer band earns more")
 end)
 
 return nil

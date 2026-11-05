@@ -37,6 +37,8 @@ export type Options = {
 	dt: number?,
 	tuning: any?,
 	partyShare: number?,
+	-- How bots choose skills: "cheapest" (the default) or "value" (BotBrain).
+	buying: string?,
 	-- META_CURRENCY a finished site pays its party. Defaults to the site's
 	-- payout in SiteList, found by the blueprint's name, or 0.
 	payout: number?,
@@ -183,7 +185,7 @@ function Sim.run(options: Options): Result
 	local bots = {}
 	for id = 1, players do
 		-- Players arrive spread along the front of the site.
-		local bot = BotBrain.new(session, id, bp.sizeX * id / (players + 1), 1, -2)
+		local bot = BotBrain.new(session, id, bp.sizeX * id / (players + 1), 1, -2, { buying = options.buying })
 		table.insert(bots, bot)
 		SiteSession.join(session, id, tuning.stats(bot.levels) :: any, if options.tool then tuning.tool else nil)
 		SiteSession.move(session, id, bot.x, bot.y, bot.z)

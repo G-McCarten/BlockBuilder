@@ -6,8 +6,10 @@
 
 	Each step, a bot:
 
-	  - buys the cheapest skill node it can afford, skipping ones that only
-	    change how a client aims
+	  - buys a skill level, skipping nodes that only change how a client
+	    aims. By default it buys the cheapest it can afford. Buying by value,
+	    it saves for the level that adds the most to its pay a second for the
+	    price, by a rough model of its play (BotBrain.earning).
 	  - uses its ABILITY, and its POWER_TOOL if it has one, when ready
 	  - deals with the boss's works when they matter: breaks the nearest
 	    binding while the site is held at its cap, breaks a marker it can
@@ -37,6 +39,15 @@ export type Bot = {
 	target: number,
 	busyUntil: number,
 	placeable: (slot: number) -> boolean,
+	-- "cheapest" or "value": how it chooses skill levels.
+	buying: string,
+	-- The node it is saving for, buying by value. Chosen again after each buy.
+	want: any?,
+}
+
+export type Options = {
+	-- "cheapest", the default, or "value".
+	buying: string?,
 }
 
 -- What a bot's owner can listen for. clicked gets the blocks a click placed.
@@ -60,7 +71,7 @@ local found: { number } = {}
 
 -- A bot for session, standing at (x, y, z). It isn't working the site until
 -- SiteSession.join is called for its id.
-function BotBrain.new(session: any, id: number, x: number, y: number, z: number): Bot
+function BotBrain.new(session: any, id: number, x: number, y: number, z: number, options: Options?): Bot
 	local site = session.site
 	return {
 		id = id,
@@ -73,7 +84,80 @@ function BotBrain.new(session: any, id: number, x: number, y: number, z: number)
 		placeable = function(s: number): boolean
 			return BuildSite.canPlace(site, s, HAND)
 		end,
+		buying = if options and options.buying then options.buying else "cheapest",
+		want = nil,
 	}
+end
+
+-- The model's rough rates, measured by the sim with bots on every site.
+-- Share of its cooldowns a bot clicks on (0.83 to 0.92); the rest go on
+-- walking and lifts.
+local CLICK_SHARE = 0.88
+-- Share of the cells within a chain's radius READY when a chain starts (0.01
+-- to 0.03). A click's batch has just taken the nearest, so few are.
+local CHAIN_READY = 0.02
+-- Share of an ABILITY band's budget it finds work for (0.44 to 0.94).
+local BAND_SHARE = 0.75
+
+-- Cells within radius of a cell, not counting it.
+local function cellsWithin(radius: number): number
+	local r = math.floor(radius)
+	local n = 0
+	for dx = -r, r do
+		for dy = -r, r do
+			for dz = -r, r do
+				local d2 = dx * dx + dy * dy + dz * dz
+				if d2 > 0 and d2 <= radius * radius then
+					n += 1
+				end
+			end
+		end
+	end
+	return n
+end
+
+-- Run currency a second a bot earns with these stats, by a rough model of
+-- its play: it clicks on most cooldowns, each click placing its batch and
+-- sometimes a chain, and its ABILITY's band, once unlocked, places at
+-- bandRate per cell of its width while it runs. Every block pays its yield
+-- once; clicked ones also roll for perfect.
+function BotBrain.earning(stats: any, ability: boolean, bandRate: number): number
+	local clicked = CLICK_SHARE / stats.cooldown * stats.batch
+	local chained = clicked * stats.chainChance * CHAIN_READY * cellsWithin(stats.chainRadius)
+	local band = 0
+	if ability then
+		band = BAND_SHARE * bandRate * stats.crewWidth * stats.crewDuration / stats.crewCooldown
+	end
+	local perfect = 1 + stats.perfectChance * (stats.perfectReward - 1)
+	return stats.yield * stats.yieldMult * (clicked * perfect + chained + band)
+end
+
+-- The node whose next level adds the most to the bot's earning for its
+-- price. Levels the model sees no gain in, such as setTime's, which only
+-- hurries a chain's blocks, wait until nothing else is left, cheapest first.
+local function bestValue(bot: Bot, session: any, tuning: Tuning): any?
+	local bandRate = session.rules.bandRate
+	local ability = (bot.levels[tuning.abilityNode] or 0) >= 1
+	local now = BotBrain.earning(tuning.stats(bot.levels), ability, bandRate)
+	local best, bestScore = nil, 0
+	local cheapest, cheapestPrice = nil, math.huge
+	for _, node in tuning.nodes do
+		local level = bot.levels[node.id] or 0
+		if level < node.max and not node.clientOnly then
+			local price = tuning.price(node, level)
+			local levels = table.clone(bot.levels)
+			levels[node.id] = level + 1
+			local unlocks = ability or node.id == tuning.abilityNode
+			local score = (BotBrain.earning(tuning.stats(levels), unlocks, bandRate) - now) / price
+			if score > bestScore then
+				best, bestScore = node, score
+			end
+			if price < cheapestPrice then
+				cheapest, cheapestPrice = node, price
+			end
+		end
+	end
+	return best or cheapest
 end
 
 local function nearestWork(bot: Bot, index: any): number
@@ -119,17 +203,28 @@ end
 local function buy(bot: Bot, session: any, tuning: Tuning, tool: boolean, hooks: Hooks?)
 	local worker = session.workers[bot.id]
 	local best, bestPrice = nil, math.huge
-	for _, node in tuning.nodes do
-		local level = bot.levels[node.id] or 0
-		if level < node.max and not node.clientOnly then
-			local price = tuning.price(node, level)
-			if price < bestPrice then
-				best, bestPrice = node, price
+	if bot.buying == "value" then
+		if bot.want == nil then
+			bot.want = bestValue(bot, session, tuning)
+		end
+		best = bot.want
+		if best then
+			bestPrice = tuning.price(best, bot.levels[best.id] or 0)
+		end
+	else
+		for _, node in tuning.nodes do
+			local level = bot.levels[node.id] or 0
+			if level < node.max and not node.clientOnly then
+				local price = tuning.price(node, level)
+				if price < bestPrice then
+					best, bestPrice = node, price
+				end
 			end
 		end
 	end
 	if best and worker.purse >= bestPrice then
 		worker.purse -= bestPrice
+		bot.want = nil
 		local level = (bot.levels[best.id] or 0) + 1
 		bot.levels[best.id] = level
 		SiteSession.setStats(session, bot.id, tuning.stats(bot.levels), if tool then tuning.tool else nil)
