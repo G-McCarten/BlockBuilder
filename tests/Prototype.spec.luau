@@ -241,6 +241,46 @@ Test.case("far chunks draw as merged boxes and come back near without losing a b
 	Test.equal(#world.errors, 0, errorsOf(world))
 end)
 
+Test.case("the power tool swings for players who have it", function()
+	local world, player = boot({ PowerTool = true, Difficulty = "None" })
+	Test.equal(realOf(world, player):GetAttribute("HasTool"), true, "granted")
+	-- Stand at the plinth's front edge, facing in.
+	aimAt(world, player, 10, 0, 4)
+	world.camera.CFrame = CFrame.lookAt(ORIGIN + Vector3.new(10, 3, 0) * STUDS, ORIGIN + Vector3.new(10, 1, 10) * STUDS)
+	press(world, Enum.KeyCode.F)
+	for _ = 1, 10 do
+		world:step(1 / 60)
+	end
+	Test.check(drawnCount(world) > 5, `the swing laid {drawnCount(world)}`)
+	Test.equal(#world.errors, 0, errorsOf(world))
+end)
+
+Test.case("with Sure Hand, a click at the sky lays the nearest block in reach", function()
+	local world, player = boot({ Batch = 20, Difficulty = "None" })
+	hold(world)
+	for x = 2, 30, 2 do
+		aimAt(world, player, x, 0, 8)
+		for _ = 1, 48 do
+			world:step(1 / 60)
+		end
+	end
+	release(world)
+	world.workspaceProxy:SetAttribute("Batch", nil)
+	press(world, Enum.KeyCode.Six)
+	world:step(1 / 60)
+	Test.equal(realOf(world, player):GetAttribute("Level_autoAim"), 1, "bought Sure Hand")
+	local before = drawnCount(world)
+	aimAt(world, player, 16, 0, 12)
+	world.aimRay = Ray.new(ORIGIN + Vector3.new(16, 2, 12) * STUDS, Vector3.new(0, 1, 0))
+	hold(world)
+	for _ = 1, 50 do
+		world:step(1 / 60)
+	end
+	release(world)
+	Test.check(drawnCount(world) > before, `auto-aim laid {drawnCount(world) - before}`)
+	Test.equal(#world.errors, 0, errorsOf(world))
+end)
+
 Test.case("a finished site is announced, then a fresh one replaces it", function()
 	local world, player = boot()
 	world.workspaceProxy:SetAttribute("Difficulty", "None")

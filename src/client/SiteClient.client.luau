@@ -20,8 +20,10 @@
 
 	Controls: click or tap to place, hold to keep placing. Q, the gamepad's X
 	or the on-screen button calls the crew (the ABILITY) once its skill is
-	bought. The gamepad's R2 places at the screen centre. Keys 1 to 5, or the
-	shop's buttons, buy skill levels. Step on a hoist pad to ride up to the
+	bought. F, the gamepad's Y or its button swings the POWER_TOOL for players
+	who have it. The gamepad's R2 places at the screen centre. The number keys,
+	or the shop's buttons, buy skill levels; with auto-aim bought, a click with
+	nothing under the cursor lays the nearest workable slot in reach. Step on a hoist pad to ride up to the
 	working height.
 ]]
 
@@ -58,6 +60,7 @@ local PlaceRemote = remotes:WaitForChild("Place")
 local ReadyRemote = remotes:WaitForChild("Ready")
 local AbilityRemote = remotes:WaitForChild("Ability")
 local BuyRemote = remotes:WaitForChild("Buy")
+local ToolRemote = remotes:WaitForChild("Tool")
 local StateRemote = remotes:WaitForChild("State")
 local BossRemote = remotes:WaitForChild("Boss")
 local EventRemote = remotes:WaitForChild("Event")
@@ -567,6 +570,25 @@ crewButton.Activated:Connect(function()
 	AbilityRemote:FireServer()
 end)
 
+local function swingTool()
+	local look = workspace.CurrentCamera.CFrame.LookVector
+	ToolRemote:FireServer(look.X, look.Z)
+end
+
+local toolButton = Instance.new("TextButton")
+toolButton.Name = "Tool"
+toolButton.AnchorPoint = Vector2.new(1, 1)
+toolButton.Position = UDim2.new(1, -16, 1, -192)
+toolButton.Size = UDim2.fromOffset(150, 44)
+toolButton.BackgroundColor3 = Color3.fromRGB(96, 60, 40)
+toolButton.TextColor3 = Color3.fromRGB(250, 240, 230)
+toolButton.Font = Enum.Font.GothamBold
+toolButton.TextSize = 18
+toolButton.Text = `{Theme.PowerTool} (F)`
+toolButton.Visible = false
+toolButton.Parent = gui
+toolButton.Activated:Connect(swingTool)
+
 -- The skill shop: one button a node, with its level and next price.
 local shop = Instance.new("Frame")
 shop.Name = "Shop"
@@ -616,6 +638,7 @@ local function refreshShop()
 		end
 	end
 	crewButton.Visible = (player:GetAttribute(`Level_{SkillTuning.abilityNode}`) or 0) >= 1
+	toolButton.Visible = player:GetAttribute("HasTool") == true
 end
 
 local function say(text: string)
@@ -656,7 +679,17 @@ local function aimedSlot(): number?
 	local ox, oy, oz = toCells(ray.Origin)
 	local d = ray.Direction.Unit
 	local grasp = player:GetAttribute("Grasp") or SiteConfig.BASE_GRASP_CELLS
-	return (SiteRay.cast(bp, mirror, ox, oy, oz, d.X, d.Y, d.Z, 120, rx, ry, rz, grasp))
+	local slot = SiteRay.cast(bp, mirror, ox, oy, oz, d.X, d.Y, d.Z, 120, rx, ry, rz, grasp)
+	if slot == nil and (player:GetAttribute("Level_autoAim") or 0) >= 1 then
+		-- Auto-aim: the nearest slot a click could lay.
+		local n = SiteIndex.nearest(index, rx, ry, rz, grasp, function(s)
+			return BuildSite.canPlace(mirror, s, BuildSite.Cause.HAND)
+		end, 1, found)
+		if n > 0 then
+			slot = found[1]
+		end
+	end
+	return slot
 end
 
 local function tryPlace()
@@ -690,6 +723,8 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		tryPlace()
 	elseif input.KeyCode == Enum.KeyCode.Q or input.KeyCode == Enum.KeyCode.ButtonX then
 		AbilityRemote:FireServer()
+	elseif input.KeyCode == Enum.KeyCode.F or input.KeyCode == Enum.KeyCode.ButtonY then
+		swingTool()
 	else
 		local digit = string.match(input.KeyCode.Name, "^(%a+)$")
 		local numbers = { One = 1, Two = 2, Three = 3, Four = 4, Five = 5, Six = 6, Seven = 7, Eight = 8, Nine = 9 }
@@ -953,6 +988,8 @@ EventRemote.OnClientEvent:Connect(function(events)
 			say(`You found {Theme.PremiumCurrency}!`)
 		elseif kind == "ability" and e.userId == me then
 			say(`{Theme.Ability}!`)
+		elseif kind == "tool" and e.userId == me then
+			say(`{Theme.PowerTool}: {e.amount} {Theme.Block.many}!`)
 		elseif kind == "perfect" and e.userId == me then
 			playTick()
 		elseif kind == "finished" then

@@ -20,6 +20,9 @@
 	Workspace attributes tune it while it runs:
 
 	  Difficulty   None, Normal, Hard or Nightmare, read when a site starts
+	  Site         a SiteList id to start at, read when the server starts
+	  PowerTool    true gives everyone the POWER_TOOL, swung on
+	               SiteRemotes.Tool, as its game pass will
 	  Cooldown, Grasp, Batch, SetTime, ChainChance, ChainRadius,
 	  PerfectChance, CrewWidth, CrewCooldown
 	               override that stat for everyone, read whenever one changes
@@ -121,6 +124,7 @@ local PlaceRemote = remote("Place")
 local ReadyRemote = remote("Ready")
 local AbilityRemote = remote("Ability")
 local BuyRemote = remote("Buy")
+local ToolRemote = remote("Tool")
 local StateRemote = remote("State")
 local BossRemote = remote("Boss")
 local EventRemote = remote("Event")
@@ -158,9 +162,16 @@ local function stats(player: Player)
 	return s
 end
 
+-- The POWER_TOOL's stats, for players who have it.
+local function toolFor(_player: Player)
+	return if workspace:GetAttribute("PowerTool") == true then SkillTuning.tool else nil
+end
+
 local function pushStats(player: Player)
 	local s = stats(player)
-	SiteSession.setStats(session, player.UserId, s)
+	local tool = toolFor(player)
+	SiteSession.setStats(session, player.UserId, s, tool)
+	player:SetAttribute("HasTool", tool ~= nil)
 	player:SetAttribute("Cooldown", s.cooldown)
 	player:SetAttribute("Grasp", s.grasp)
 	for _, node in SkillTuning.nodes do
@@ -256,6 +267,14 @@ AbilityRemote.OnServerEvent:Connect(function(player)
 	end
 	updatePosition(player)
 	SiteSession.useAbility(session, player.UserId)
+end)
+
+ToolRemote.OnServerEvent:Connect(function(player, fx, fz)
+	if typeof(fx) ~= "number" or typeof(fz) ~= "number" or fx ~= fx or fz ~= fz then
+		return
+	end
+	updatePosition(player)
+	SiteSession.useTool(session, player.UserId, fx, fz)
 end)
 
 BuyRemote.OnServerEvent:Connect(function(player, nodeId)

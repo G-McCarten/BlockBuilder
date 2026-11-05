@@ -42,6 +42,9 @@ export type Node = {
 	-- What players see.
 	name: string,
 	blurb: string,
+	-- Changes only how the client plays, so the sim's bots, which aim
+	-- perfectly, don't buy it.
+	clientOnly: boolean?,
 	max: number,
 	price: number,
 	growth: number,
@@ -107,6 +110,20 @@ Tuning.nodes = {
 				stats.crewWidth += level - 1
 				stats.crewDuration += 2 * (level - 1)
 			end
+		end,
+	},
+	-- Auto-aim: a click with nothing under the cursor lays the nearest READY
+	-- slot in reach. It changes only how the client aims.
+	{
+		id = "autoAim",
+		name = "Sure Hand",
+		blurb = "Click anywhere to lay the nearest brick in reach.",
+		max = 1,
+		price = 240,
+		growth = 1,
+		clientOnly = true,
+		apply = function(stats, level)
+			stats.autoAim = level
 		end,
 	},
 }

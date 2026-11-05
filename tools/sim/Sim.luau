@@ -166,7 +166,7 @@ function Sim.run(options: Options): Result
 		local best, bestPrice = nil, math.huge
 		for _, node in tuning.nodes do
 			local level = bot.levels[node.id] or 0
-			if level < node.max then
+			if level < node.max and not node.clientOnly then
 				local price = tuning.price(node, level)
 				if price < bestPrice then
 					best, bestPrice = node, price
