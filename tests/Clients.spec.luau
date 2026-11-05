@@ -83,4 +83,44 @@ Test.case("two clients lay blocks together and both end showing what the server 
 	Test.equal(#errors, 0, table.concat(errors, "\n\n"))
 end)
 
+Test.case("a late joiner draws a big site over several frames, nearest first, then all of it", function()
+	local game = PlaceBuilder.build("default.project.json")
+	local workspace = game:GetService("Workspace")
+	workspace:SetAttribute("Difficulty", "None")
+	workspace:SetAttribute("Batch", 400)
+	workspace:SetAttribute("Grasp", 80)
+	workspace:SetAttribute("Cooldown", 0.05)
+	local group = FakeGroup.new(game)
+	group:start()
+	local a = group:addClient(1)
+	a:input("began", { UserInputType = Enum.UserInputType.MouseButton1 })
+	for frame = 1, 90 do
+		local x, z = (frame * 7) % 41, (frame * 11) % 28
+		a.aimRay = Ray.new(ORIGIN + Vector3.new(x + 0.5, 40, z + 0.5) * STUDS, Vector3.new(0, -1, 0))
+		group:step(1 / 60)
+	end
+	a:input("ended", { UserInputType = Enum.UserInputType.MouseButton1 })
+	for _ = 1, 120 do
+		group:step(1 / 60)
+	end
+	local placed = workspace:GetAttribute("SitePlaced")
+	Test.check(placed > 2000, `the first laid {placed}`)
+
+	-- The second joins looking over the front corner, so the site's far end is far.
+	local b = group:addClient(2)
+	b.camera.CFrame = CFrame.new(ORIGIN + Vector3.new(-10, 20, -10))
+	group:step(1 / 60)
+	local first = drawn(b)
+	Test.check(first > 0 and first <= 400, `the first frame drew {first} of {placed}`)
+	local frames = 1
+	while drawn(b) < placed and frames < 200 do
+		group:step(1 / 60)
+		frames += 1
+	end
+	Test.equal(drawn(b), placed, "every block drawn in the end")
+	Test.check(frames >= 4, `over {frames} frames`)
+	local errors = group:errors()
+	Test.equal(#errors, 0, table.concat(errors, "\n\n"))
+end)
+
 return nil

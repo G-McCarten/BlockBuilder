@@ -16,6 +16,13 @@
 	  local player = world:addPlayer(1)    joins, with a character at the spawn
 	  world:runScripts("client")           every LocalScript in StarterPlayerScripts
 	  world:step(1 / 60)                   one frame: server tick, client frame
+	  world:input("began", fields, true)   input, true if a button took it
+	  world:activate(button)               a click or tap on a GUI button
+
+	world.sounds counts sounds played, world.puffs ParticleEmitter bursts and
+	world.emits the particles in them. Set world.userInput's TouchEnabled and
+	MouseEnabled, and world.camera.ViewportSize, before the client runs to
+	stand in for a phone.
 ]]
 
 local luau = require("@lune/luau")
@@ -73,6 +80,9 @@ function FakeRoblox.new(game)
 	world.signals = {}
 	world.modules = { server = {}, client = {} }
 	world.sounds = 0
+	world.puffs = 0
+	world.emits = 0
+	world.inputs = setmetatable({}, { __mode = "k" })
 	world.created = {}
 	world.aimRay = roblox.Ray.new(roblox.Vector3.new(0, 50, 0), roblox.Vector3.new(0, -1, 0))
 	world.mouse = roblox.Vector2.new(400, 300)
@@ -134,7 +144,9 @@ function FakeRoblox.new(game)
 	function world.camera:ViewportPointToRay()
 		return world.aimRay
 	end
-	function world.camera:ScreenPointToRay()
+	-- Every ray aims along world.aimRay; the screen point asked for is kept in world.screenPoint.
+	function world.camera:ScreenPointToRay(x, y)
+		world.screenPoint = roblox.Vector2.new(x, y)
 		return world.aimRay
 	end
 
@@ -243,6 +255,12 @@ function METHODS.Play(world)
 	world.sounds += 1
 end
 
+-- Lune has no particles; a burst is counted. Roblox emits 16 when no count is given.
+function METHODS.Emit(world, _proxy, count)
+	world.puffs += 1
+	world.emits += count or 16
+end
+
 function METHODS.Stop() end
 
 function METHODS.PivotTo(world, proxy, cframe)
@@ -281,9 +299,13 @@ function FakeRoblox:index(proxy, key)
 	if key == "Position" and real:IsA("BasePart") then
 		return real.CFrame.Position
 	end
-	-- Layout is Roblox's to compute; Lune has none. Guis sit at the top left.
+	-- Layout is Roblox's to compute; Lune has none. Guis sit at the top left,
+	-- and a ScreenGui fills the camera's viewport.
 	if key == "AbsolutePosition" and real:IsA("GuiBase2d") then
 		return roblox.Vector2.new(0, 0)
+	end
+	if key == "AbsoluteSize" and real.ClassName == "ScreenGui" then
+		return self.camera.ViewportSize
 	end
 	local value = real[key]
 	if type(value) == "function" then
@@ -469,18 +491,40 @@ function FakeRoblox:step(dt: number)
 	self:deliver()
 end
 
-function FakeRoblox:input(phase: string, fields: { [string]: any })
-	local input = {
-		UserInputType = fields.UserInputType or roblox.Enum.UserInputType.None,
-		-- Lune has no KeyCode.Unknown, which Roblox gives mouse input; F12 means nothing here either.
-		KeyCode = fields.KeyCode or roblox.Enum.KeyCode.F12,
-		Position = fields.Position or roblox.Vector3.new(self.mouse.X, self.mouse.Y, 0),
-	}
+-- Fires an input phase and returns its InputObject. Roblox keeps one object
+-- for a touch from began to ended, so the same fields table gets the same
+-- object here; move a touch by changing its Position and firing "changed".
+-- processed is the gameProcessedEvent flag, true when a button took the input.
+function FakeRoblox:input(phase: string, fields: { [string]: any }, processed: boolean?)
+	local input = self.inputs[fields]
+	if input == nil then
+		input = {
+			UserInputType = fields.UserInputType or roblox.Enum.UserInputType.None,
+			-- Lune has no KeyCode.Unknown, which Roblox gives mouse input; F12 means nothing here either.
+			KeyCode = fields.KeyCode or roblox.Enum.KeyCode.F12,
+		}
+		self.inputs[fields] = input
+	end
+	input.Position = fields.Position or roblox.Vector3.new(self.mouse.X, self.mouse.Y, 0)
 	local signal = if phase == "began"
 		then self.userInput.InputBegan
 		elseif phase == "ended" then self.userInput.InputEnded
 		else self.userInput.InputChanged
-	signal:Fire(input, false)
+	signal:Fire(input, processed == true)
+	return input
+end
+
+-- A click or tap on a GUI button (a proxy), as Roblox delivers it: the input
+-- begins and ends marked processed, since the button took it, then the
+-- button's Activated fires.
+function FakeRoblox:activate(button, inputType)
+	local fields = { UserInputType = inputType or roblox.Enum.UserInputType.MouseButton1 }
+	local input = self:input("began", fields, true)
+	self:input("ended", fields, true)
+	local signal = self.signals[button] and self.signals[button].Activated
+	if signal then
+		signal:Fire(input, 1)
+	end
 end
 
 function FakeRoblox:touch(part, hit)

@@ -5,7 +5,9 @@
 
 	It builds a site from SiteList beside the spawn and runs it with
 	SiteSession: the one named by the workspace's Site attribute, else the
-	first. The site in play is in the workspace's CurrentSite attribute.
+	first. The site in play is in the workspace's CurrentSite attribute, and
+	its difficulty in CurrentDifficulty. A sign before the site names it, the
+	hoist pads carry labels, and the spawn faces the site.
 	Clicks arrive on SiteRemotes.Place. Each tick, the delta goes
 	out on SiteRemotes.State with the answers to that tick's clicks after it,
 	which is the order Prediction needs. The boss's view goes out on
@@ -79,6 +81,50 @@ if not workspace:FindFirstChild("Baseplate") then
 	ground = part
 end
 
+-- Players arrive facing the site, and so its sign.
+local spawnPad = workspace:FindFirstChild("SpawnLocation")
+if spawnPad and spawnPad:IsA("BasePart") and spawnPad.Position.Z < ORIGIN.Z then
+	local at = spawnPad.Position
+	spawnPad.CFrame = CFrame.lookAt(at, Vector3.new(at.X, at.Y, ORIGIN.Z))
+end
+
+local function capitalise(text: string): string
+	return string.upper(string.sub(text, 1, 1)) .. string.sub(text, 2)
+end
+
+-- A title and a line of help over a prop, the same size on screen at any distance.
+local function hoverLabel(adornee: BasePart, title: string, detail: string, height: number)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "Label"
+	billboard.Adornee = adornee
+	billboard.Size = UDim2.fromOffset(190, 52)
+	billboard.StudsOffset = Vector3.new(0, height, 0)
+	billboard.MaxDistance = 160
+	billboard.LightInfluence = 0
+	billboard.Parent = adornee
+	local heading = Instance.new("TextLabel")
+	heading.Name = "Title"
+	heading.Size = UDim2.fromScale(1, 0.6)
+	heading.BackgroundTransparency = 1
+	heading.Font = Enum.Font.GothamBold
+	heading.TextSize = 22
+	heading.TextColor3 = Color3.fromRGB(235, 245, 255)
+	heading.TextStrokeTransparency = 0.4
+	heading.Text = title
+	heading.Parent = billboard
+	local line = Instance.new("TextLabel")
+	line.Name = "Detail"
+	line.Position = UDim2.fromScale(0, 0.6)
+	line.Size = UDim2.fromScale(1, 0.4)
+	line.BackgroundTransparency = 1
+	line.Font = Enum.Font.Gotham
+	line.TextSize = 15
+	line.TextColor3 = Color3.fromRGB(210, 230, 250)
+	line.TextStrokeTransparency = 0.5
+	line.Text = detail
+	line.Parent = billboard
+end
+
 -- Hoist pads at the front corners; SiteClient lifts whoever steps on one.
 local props = Instance.new("Folder")
 props.Name = "SiteProps"
@@ -90,12 +136,62 @@ for i = 1, 2 do
 	pad.Size = Vector3.new(STUDS * 1.6, 0.4, STUDS * 1.6)
 	pad.Color = Color3.fromRGB(120, 190, 255)
 	pad.Material = Enum.Material.Neon
+	hoverLabel(pad, `{capitalise(Theme.Hoist)} pad`, "Step on to ride up", 3)
 	pad.Parent = props
 	pads[i] = pad
 end
+
+-- A sign before the site's front, naming the site in play: a board on two
+-- posts, high enough to walk under. None of it collides or stops the camera.
+local SIGN_SIZE = Vector3.new(22, 4.5, 0.6)
+local SIGN_HEIGHT = 9.5
+local sign = Instance.new("Model")
+sign.Name = "SiteSign"
+local function signPart(name: string, size: Vector3, material: Enum.Material, color: Color3): BasePart
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.Size = size
+	part.Material = material
+	part.Color = color
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Parent = sign
+	return part
+end
+local board = signPart("Board", SIGN_SIZE, Enum.Material.WoodPlanks, Color3.fromRGB(110, 78, 52))
+local postSize = Vector3.new(0.8, SIGN_HEIGHT + SIGN_SIZE.Y / 2, 0.8)
+local signPosts = {
+	signPart("Post", postSize, Enum.Material.Wood, Color3.fromRGB(86, 60, 40)),
+	signPart("Post", postSize, Enum.Material.Wood, Color3.fromRGB(86, 60, 40)),
+}
+-- The name on both faces, so it reads from the spawn and from the site.
+local signNames: { TextLabel } = {}
+for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
+	local surface = Instance.new("SurfaceGui")
+	surface.Name = face.Name
+	surface.Face = face
+	surface.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	surface.PixelsPerStud = 40
+	surface.LightInfluence = 0
+	surface.Parent = board
+	local text = Instance.new("TextLabel")
+	text.Name = "SiteName"
+	text.Size = UDim2.fromScale(1, 1)
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.GothamBold
+	text.TextScaled = true
+	text.TextColor3 = Color3.fromRGB(255, 226, 160)
+	text.Parent = surface
+	table.insert(signNames, text)
+end
+sign.Parent = props
 props.Parent = workspace
 
--- Loads site number n of SiteList and fits the ground and pads to it.
+-- Loads site number n of SiteList and fits the ground, pads and sign to it.
 local function loadSite(n: number)
 	siteNumber = n
 	local entry = SiteList[n]
@@ -103,6 +199,20 @@ local function loadSite(n: number)
 	workspace:SetAttribute("CurrentSite", entry.id)
 	pads[1].Position = ORIGIN + Vector3.new(-1.5 * STUDS, 0.2, -1.5 * STUDS)
 	pads[2].Position = ORIGIN + Vector3.new((bp.sizeX + 1.5) * STUDS, 0.2, -1.5 * STUDS)
+	-- In line with the spawn where the site is wide enough, else at its middle.
+	local width = bp.sizeX * STUDS
+	local left, right = ORIGIN.X + SIGN_SIZE.X / 2, ORIGIN.X + width - SIGN_SIZE.X / 2
+	local along = if spawnPad then spawnPad.Position.X else ORIGIN.X + width / 2
+	local x = if left <= right then math.clamp(along, left, right) else ORIGIN.X + width / 2
+	local z = ORIGIN.Z - 2.5 * STUDS
+	board.Position = Vector3.new(x, ORIGIN.Y + SIGN_HEIGHT, z)
+	for i, post in signPosts do
+		local side = if i == 1 then -1 else 1
+		post.Position = Vector3.new(x + side * (SIGN_SIZE.X / 2 - 0.4), ORIGIN.Y + postSize.Y / 2, z)
+	end
+	for _, text in signNames do
+		text.Text = entry.name
+	end
 	if ground then
 		ground.Size = Vector3.new(bp.sizeX * STUDS + 200, 2, bp.sizeZ * STUDS + 200)
 		ground.Position = ORIGIN + Vector3.new(bp.sizeX * STUDS / 2, -1, bp.sizeZ * STUDS / 2)
@@ -270,6 +380,11 @@ local function start(n: number)
 	if tuning then
 		SiteSession.setBoss(session, tuning)
 	end
+	-- Difficulty is read only here, so clients learn the one in play from this.
+	workspace:SetAttribute(
+		"CurrentDifficulty",
+		if tuning == nil then "None" elseif typeof(difficulty) == "string" then difficulty else "Normal"
+	)
 	for _, player in Players:GetPlayers() do
 		join(player)
 	end
@@ -285,13 +400,14 @@ Players.PlayerRemoving:Connect(function(player)
 	levels[player] = nil
 end)
 
+-- Only the attributes that change a stat push stats; SitePlaced changes every tick.
 workspace.AttributeChanged:Connect(function(name)
 	if name == "BotPlayers" then
 		syncBots()
-		return
-	end
-	for _, player in Players:GetPlayers() do
-		pushStats(player)
+	elseif OVERRIDES[name] or name == "PowerTool" then
+		for _, player in Players:GetPlayers() do
+			pushStats(player)
+		end
 	end
 end)
 
@@ -354,6 +470,8 @@ BuyRemote.OnServerEvent:Connect(function(player, nodeId)
 end)
 
 local bossClock = 0
+-- Which pets this tick found, kept between ticks so no table is made per tick.
+local alive: { [number]: boolean } = {}
 RunService.Heartbeat:Connect(function(dt)
 	local speed = workspace:GetAttribute("TestSpeed")
 	dt = math.min(dt, 0.1) * (if typeof(speed) == "number" then math.clamp(speed, 1, 5) else 1)
@@ -369,7 +487,7 @@ RunService.Heartbeat:Connect(function(dt)
 	SiteSession.step(session, dt)
 
 	-- Pets' stand-ins follow them; a pet gone with its owner takes its part.
-	local alive = {}
+	table.clear(alive)
 	for _, pet in session.pets do
 		alive[pet.id] = true
 		local part = petParts[pet.id]

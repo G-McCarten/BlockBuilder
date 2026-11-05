@@ -1,19 +1,30 @@
 local roblox = require("@lune/roblox")
 
+local BossConfig = require("../src/shared/BossConfig")
 local FakeRoblox = require("./lib/FakeRoblox")
 local PlaceBuilder = require("./lib/PlaceBuilder")
 local Test = require("./lib/Test")
+local Theme = require("../src/shared/Theme")
 
-local Vector3, CFrame, Ray, Enum = roblox.Vector3, roblox.CFrame, roblox.Ray, roblox.Enum
+local Vector2, Vector3, CFrame, Ray, Enum = roblox.Vector2, roblox.Vector3, roblox.CFrame, roblox.Ray, roblox.Enum
 local STUDS = 3
 local ORIGIN = Vector3.new(24, 0, 24)
+-- A phone held sideways, in points.
+local PHONE = Vector2.new(844, 390)
 
-local function boot(attributes: { [string]: any }?)
+-- Boots the place with one player. device "phone" gives the client touch
+-- and no mouse, on a phone-sized screen.
+local function boot(attributes: { [string]: any }?, device: string?)
 	local game = PlaceBuilder.build("default.project.json")
 	for name, value in attributes or {} do
 		game:GetService("Workspace"):SetAttribute(name, value)
 	end
 	local world = FakeRoblox.new(game)
+	if device == "phone" then
+		world.userInput.TouchEnabled = true
+		world.userInput.MouseEnabled = false
+		world.camera.ViewportSize = PHONE
+	end
 	world:runScripts("server")
 	local player = world:addPlayer(1)
 	world:runScripts("client")
@@ -21,6 +32,12 @@ local function boot(attributes: { [string]: any }?)
 		world:step(1 / 60)
 	end
 	return world, player
+end
+
+local function steps(world, n: number)
+	for _ = 1, n do
+		world:step(1 / 60)
+	end
 end
 
 local function errorsOf(world): string
@@ -60,9 +77,69 @@ local function drawnCount(world): number
 	return blockCount(world) + cells
 end
 
+local function hudOf(world, player)
+	return realOf(world, player):FindFirstChild("PlayerGui"):FindFirstChild("SiteHud")
+end
+
 local function hudText(world, player, name: string): string
-	local hud = realOf(world, player):FindFirstChild("PlayerGui"):FindFirstChild("SiteHud")
-	return hud:FindFirstChild(name).Text
+	return hudOf(world, player):FindFirstChild(name).Text
+end
+
+-- A GUI object's place on screen, in pixels, from its Position, Size and
+-- AnchorPoint up to the ScreenGui, which fills the viewport: x, y, w, h.
+local function rectOf(world, gui): (number, number, number, number)
+	if gui:IsA("ScreenGui") then
+		local size = world.camera.ViewportSize
+		return 0, 0, size.X, size.Y
+	end
+	local px, py, pw, ph = rectOf(world, gui.Parent)
+	local w = gui.Size.X.Scale * pw + gui.Size.X.Offset
+	local h = gui.Size.Y.Scale * ph + gui.Size.Y.Offset
+	local x = px + gui.Position.X.Scale * pw + gui.Position.X.Offset - gui.AnchorPoint.X * w
+	local y = py + gui.Position.Y.Scale * ph + gui.Position.Y.Offset - gui.AnchorPoint.Y * h
+	return x, y, w, h
+end
+
+-- Where Roblox's TouchJump module puts the jump button on a screen this size.
+local function jumpRect(screen): (number, number, number, number)
+	local small = math.min(screen.X, screen.Y) <= 500
+	local size = if small then 70 else 120
+	local y = if small then screen.Y - size - 20 else screen.Y - size * 1.75
+	return screen.X - (size * 1.5 - 10), y, size, size
+end
+
+local function overlaps(ax, ay, aw, ah, bx, by, bw, bh): boolean
+	return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah
+end
+
+-- Whether a GUI object and everything above it in its ScreenGui are visible.
+local function shown(gui): boolean
+	while not gui:IsA("ScreenGui") do
+		if not gui.Visible then
+			return false
+		end
+		gui = gui.Parent
+	end
+	return true
+end
+
+-- Every button in the HUD, shown or not.
+local function hudButtons(world, player): { any }
+	local list = {}
+	for _, d in hudOf(world, player):GetDescendants() do
+		if d:IsA("TextButton") then
+			table.insert(list, d)
+		end
+	end
+	return list
+end
+
+local function sitePlaced(world): number
+	return world.realGame:GetService("Workspace"):GetAttribute("SitePlaced") or 0
+end
+
+local function capitalise(text: string): string
+	return string.upper(string.sub(text, 1, 1)) .. string.sub(text, 2)
 end
 
 -- Stands the character in front of cell (x, y, z) and aims at it from above.
@@ -400,6 +477,328 @@ Test.case("a finished site is announced, then a fresh one replaces it", function
 	Test.equal(embers(world, player), 0, "with an empty purse")
 	Test.equal(world.realGame:GetService("Workspace"):GetAttribute("CurrentSite"), "IceBridge", "the next site")
 	Test.equal(hudText(world, player, "Built"), "Ice Bridge: laid 0%", "the client loaded it")
+	local sign = world.realGame:GetService("Workspace"):FindFirstChild("SiteProps"):FindFirstChild("SiteSign")
+	local front = sign:FindFirstChild("Board"):FindFirstChild("Front")
+	Test.equal(front:FindFirstChild("SiteName").Text, "Ice Bridge", "the sign names the next site")
+	Test.equal(
+		world.realGame:GetService("Workspace"):GetAttribute("CurrentDifficulty"),
+		"None",
+		"the next site reads the Difficulty set since"
+	)
+	Test.equal(#world.errors, 0, errorsOf(world))
+end)
+
+Test.case("the hoist pads carry labels, a sign names the site, and the spawn faces it", function()
+	local world = boot({ Site = "GreatHall" })
+	local workspace = world.realGame:GetService("Workspace")
+	local props = workspace:FindFirstChild("SiteProps")
+	local pads = 0
+	for _, pad in props:GetChildren() do
+		if pad.Name == "HoistPad" then
+			pads += 1
+			local label = pad:FindFirstChild("Label")
+			Test.check(label and label:IsA("BillboardGui") and label.Adornee == pad, "a label over each pad")
+			Test.equal(label:FindFirstChild("Title").Text, `{capitalise(Theme.Hoist)} pad`, "named from Theme")
+		end
+	end
+	Test.equal(pads, 2, "two pads")
+	local board = props:FindFirstChild("SiteSign"):FindFirstChild("Board")
+	for _, face in { "Front", "Back" } do
+		Test.equal(board:FindFirstChild(face):FindFirstChild("SiteName").Text, "Great Hall", `the {face} names it`)
+	end
+	for _, part in props:FindFirstChild("SiteSign"):GetChildren() do
+		Test.check(not part.CanCollide and not part.CanQuery, "the sign never stops a player or the camera")
+	end
+	Test.check(board.CFrame.Position.Z < ORIGIN.Z, "the sign stands before the site")
+	local spawn = workspace:FindFirstChild("SpawnLocation")
+	Test.check(spawn.CFrame.LookVector.Z > 0.99, `the spawn faces the site: {spawn.CFrame.LookVector}`)
+	Test.equal(workspace:GetAttribute("CurrentDifficulty"), "Normal", "no Difficulty plays Normal")
+	Test.equal(#world.errors, 0, errorsOf(world))
+end)
+
+Test.case(
+	"on a phone, buttons are thumb-sized, crew and tool sit by the jump button, the shop starts folded",
+	function()
+		local world, player = boot({ Difficulty = "None", PowerTool = true }, "phone")
+		-- Shows the crew's button, as buying its skill would.
+		realOf(world, player):SetAttribute("Level_crew", 1)
+		steps(world, 20)
+		local hud = hudOf(world, player)
+		local function check(screen)
+			local jx, jy, jw, jh = jumpRect(screen)
+			for _, name in { "Crew", "Tool" } do
+				local b = hud:FindFirstChild(name)
+				local x, y, w, h = rectOf(world, b)
+				Test.check(shown(b), `{name} shows`)
+				Test.check(w >= 44 and h >= 44, `{name} is thumb-sized: {w} by {h}`)
+				Test.check(x >= screen.X / 2 and y >= screen.Y / 2, `{name} is in the right thumb's corner: {x}, {y}`)
+				Test.check(x + w <= screen.X and y + h <= screen.Y, `{name} is on screen`)
+				Test.check(not overlaps(x, y, w, h, jx, jy, jw, jh), `{name} clears the jump button`)
+				Test.check(not string.find(b.Text, "(", 1, true), `{name} shows no key on a phone: {b.Text}`)
+			end
+			local seen = {}
+			for _, b in hudButtons(world, player) do
+				if shown(b) then
+					local x, y, w, h = rectOf(world, b)
+					Test.check(w >= 44 and h >= 44, `{b.Name} is thumb-sized: {w} by {h}`)
+					for _, other in seen do
+						Test.check(not overlaps(x, y, w, h, rectOf(world, other)), `{b.Name} overlaps {other.Name}`)
+					end
+					table.insert(seen, b)
+				end
+			end
+			Test.check(#seen >= 4, `{#seen} buttons show`)
+		end
+		check(PHONE)
+		-- Taps between buttons land on something that takes input, not the site.
+		local barX, barY, barW, barH = rectOf(world, hud:FindFirstChild("ToggleBar"))
+		for _, name in { "ShopToggle", "SettingsToggle" } do
+			local x, y, w, h = rectOf(world, hud:FindFirstChild(name))
+			local inside = x >= barX and y >= barY and x + w <= barX + barW and y + h <= barY + barH
+			Test.check(inside, `the bar spans {name}`)
+		end
+		for _, name in { "ToggleBar", "Shop", "Settings" } do
+			Test.check(hud:FindFirstChild(name).Active, `{name} takes input`)
+		end
+		Test.check(not hud:FindFirstChild("Shop").Visible, "the shop starts folded")
+		world:activate(world:wrap(hud:FindFirstChild("ShopToggle")), Enum.UserInputType.Touch)
+		Test.check(hud:FindFirstChild("Shop").Visible, "its toggle opens it")
+		local _, y, _, h = rectOf(world, hud:FindFirstChild("Shop"))
+		Test.check(y + h <= PHONE.Y, "the open shop fits the screen, and scrolls")
+		for _, b in hud:FindFirstChild("Shop"):GetChildren() do
+			local _, _, bw, bh = rectOf(world, b)
+			Test.check(bw >= 44 and bh >= 44, `the shop's {b.Name} is thumb-sized`)
+		end
+		-- Turned to a tablet: the bigger jump button, and the HUD follows.
+		world.camera.ViewportSize = Vector2.new(1024, 768)
+		steps(world, 20)
+		check(world.camera.ViewportSize)
+		Test.equal(#world.errors, 0, errorsOf(world))
+	end
+)
+
+Test.case("with a mouse, the shop starts open and folds with its toggle", function()
+	local world, player = boot()
+	local hud = hudOf(world, player)
+	local shop, toggle = hud:FindFirstChild("Shop"), hud:FindFirstChild("ShopToggle")
+	Test.check(shop.Visible, "open")
+	Test.equal(toggle.Text, "Hide shop", "offers to fold")
+	world:activate(world:wrap(toggle))
+	Test.check(not shop.Visible, "folded")
+	Test.equal(toggle.Text, "Shop", "offers to open")
+	world:activate(world:wrap(toggle))
+	Test.check(shop.Visible, "open again")
+	Test.equal(hudText(world, player, "Crew"), `{Theme.Ability} (Q)`, "keys show with a keyboard")
+	Test.equal(#world.errors, 0, errorsOf(world))
+end)
+
+Test.case("a click or tap on any button never lays a block", function()
+	for _, device in { "pc", "phone" } do
+		local world, player = boot({ Difficulty = "None" }, device)
+		local touch = device == "phone"
+		local kind = if touch then Enum.UserInputType.Touch else Enum.UserInputType.MouseButton1
+		-- Shows the crew's and tool's buttons; the server grants neither, so
+		-- their taps lay nothing themselves.
+		realOf(world, player):SetAttribute("Level_crew", 1)
+		realOf(world, player):SetAttribute("HasTool", true)
+		steps(world, 20)
+		aimAt(world, player, 10, 0, 4)
+		local buttons = hudButtons(world, player)
+		Test.check(#buttons >= 13, `{#buttons} buttons`)
+		for _, b in buttons do
+			world:activate(world:wrap(b), kind)
+			steps(world, 3)
+		end
+		steps(world, 30)
+		Test.equal(sitePlaced(world), 0, `{device}: no button laid a block`)
+		Test.equal(drawnCount(world), 0, `{device}: none shows`)
+		-- The same input, not taken by a button, lays one.
+		world:input("began", { UserInputType = kind })
+		steps(world, 10)
+		Test.check(sitePlaced(world) >= 1, `{device}: a tap on the world lays`)
+		Test.equal(#world.errors, 0, errorsOf(world))
+	end
+end)
+
+Test.case("on a phone, a hold follows its own finger: the thumbstick neither moves nor ends it", function()
+	local world, player = boot({ Difficulty = "None", Cooldown = 0.1 }, "phone")
+	local finger = { UserInputType = Enum.UserInputType.Touch, Position = Vector3.new(600, 200, 0) }
+	local thumb = { UserInputType = Enum.UserInputType.Touch, Position = Vector3.new(120, 300, 0) }
+	aimAt(world, player, 2, 0, 4)
+	world:input("began", finger)
+	-- The thumbstick takes its touch, so the game sees it processed.
+	world:input("began", thumb, true)
+	local atLift = 0
+	for x = 2, 20 do
+		aimAt(world, player, x, 0, 4)
+		thumb.Position = Vector3.new(120 + x, 300, 0)
+		world:input("changed", thumb, true)
+		steps(world, 12)
+		Test.equal(world.screenPoint, Vector2.new(600, 200), "the hold aims where its finger is")
+		if x == 8 then
+			world:input("ended", thumb, true)
+			atLift = sitePlaced(world)
+		end
+	end
+	Test.check(atLift >= 5, `laid {atLift} before the thumb lifted`)
+	Test.check(sitePlaced(world) >= atLift + 10, `and {sitePlaced(world) - atLift} after`)
+	finger.Position = Vector3.new(640, 210, 0)
+	world:input("changed", finger)
+	steps(world, 1)
+	Test.equal(world.screenPoint, Vector2.new(640, 210), "a moving finger moves its hold")
+	world:input("ended", finger)
+	steps(world, 2)
+	local stopped = sitePlaced(world)
+	for x = 2, 12 do
+		aimAt(world, player, x, 0, 6)
+		steps(world, 12)
+	end
+	Test.equal(sitePlaced(world), stopped, "lifting the finger ends the hold")
+	Test.equal(#world.errors, 0, errorsOf(world))
+end)
+
+Test.case("the settings turn sounds and hints off and set how far ghosts show, for the session", function()
+	local world, player = boot({ Difficulty = "None" })
+	local hud = hudOf(world, player)
+	local panel = hud:FindFirstChild("Settings")
+	local real = realOf(world, player)
+	local function tap(gui)
+		world:activate(world:wrap(gui))
+		steps(world, 2)
+	end
+	steps(world, 20)
+	Test.check(hudText(world, player, "Hint") ~= "", "a hint shows")
+	tap(hud:FindFirstChild("SettingsToggle"))
+	Test.check(panel.Visible and not hud:FindFirstChild("Shop").Visible, "the panel opens in the shop's place")
+
+	tap(panel:FindFirstChild("Sounds"))
+	Test.equal(panel:FindFirstChild("Sounds").Text, "Sounds: Off", "sounds off")
+	Test.equal(real:GetAttribute("SettingSounds"), false, "kept on the player")
+	tap(panel:FindFirstChild("Hints"))
+	Test.equal(panel:FindFirstChild("Hints").Text, "Hints: Off", "hints off")
+	Test.equal(hudText(world, player, "Hint"), "", "the hint showing goes")
+	Test.equal(real:GetAttribute("SettingHints"), false, "kept on the player")
+	hold(world)
+	for x = 2, 10 do
+		aimAt(world, player, x, 0, 4)
+		steps(world, 48)
+		Test.equal(hudText(world, player, "Hint"), "", "and no hint comes")
+	end
+	release(world)
+	Test.check(sitePlaced(world) >= 8, `laid {sitePlaced(world)}`)
+	Test.equal(world.sounds, 0, "in silence")
+
+	local ghostFolder = world.realGame:GetService("Workspace"):FindFirstChild("SiteGhosts")
+	local radius = panel:FindFirstChild("GhostRadius")
+	aimAt(world, player, 20, 0, 12)
+	steps(world, 10)
+	local medium = #ghostFolder:GetChildren()
+	Test.equal(radius.Text, "Ghost radius: Medium", "medium to start")
+	tap(radius)
+	local large = #ghostFolder:GetChildren()
+	Test.equal(radius.Text, "Ghost radius: Large", "then large")
+	tap(radius)
+	local small = #ghostFolder:GetChildren()
+	Test.equal(radius.Text, "Ghost radius: Small", "then small")
+	Test.check(small < medium and medium < large, `ghosts: small {small}, medium {medium}, large {large}`)
+	Test.equal(real:GetAttribute("SettingGhostRadius"), "Small", "kept on the player")
+	tap(radius)
+	Test.equal(real:GetAttribute("SettingGhostRadius"), "Medium", "and round to medium")
+	Test.equal(#world.errors, 0, errorsOf(world))
+end)
+
+Test.case("the aimed slot's ghost shows brighter than the other ghosts", function()
+	local world, player = boot({ Difficulty = "None" })
+	local ghostFolder = world.realGame:GetService("Workspace"):FindFirstChild("SiteGhosts")
+	local function ghostAt(x: number, z: number)
+		local centre = ORIGIN + Vector3.new(x + 0.5, 0.5, z + 0.5) * STUDS
+		for _, ghost in ghostFolder:GetChildren() do
+			if (ghost.CFrame.Position - centre).Magnitude < 0.01 then
+				return ghost
+			end
+		end
+		return nil
+	end
+	aimAt(world, player, 10, 0, 4)
+	steps(world, 12)
+	local aimed = ghostAt(10, 4)
+	Test.check(aimed, "the aimed slot has a ghost")
+	local others = 0
+	for _, ghost in ghostFolder:GetChildren() do
+		if ghost ~= aimed then
+			others += 1
+			Test.check(ghost.Transparency > aimed.Transparency + 0.2, "brighter than the rest")
+		end
+	end
+	Test.check(others > 10, `{others} other ghosts`)
+	aimAt(world, player, 14, 0, 4)
+	steps(world, 12)
+	Test.check(ghostAt(14, 4).Transparency < 0.6, "the newly aimed one lights")
+	Test.check(aimed.Transparency > 0.6 or aimed.Parent == nil, "the old one dims")
+	Test.equal(#world.errors, 0, errorsOf(world))
+end)
+
+Test.case("near placements land in a puff of dust, a few a frame, and far ones don't", function()
+	local world, player = boot({ Difficulty = "None", Batch = 200, Grasp = 40, Cooldown = 0.05 })
+	world.camera.CFrame = CFrame.new(ORIGIN + Vector3.new(10, 6, -4) * STUDS)
+	hold(world)
+	local most = 0
+	for frame = 1, 40 do
+		aimAt(world, player, 2 + frame % 20, 0, 4)
+		local before = world.puffs
+		world:step(1 / 60)
+		most = math.max(most, world.puffs - before)
+	end
+	release(world)
+	Test.check(world.puffs > 10, `{world.puffs} puffs`)
+	Test.check(world.emits > world.puffs, "of a few particles each")
+	Test.check(most <= 3, `at most three a frame, saw {most}`)
+
+	world.camera.CFrame = CFrame.new(ORIGIN + Vector3.new(60, 30, 2000))
+	steps(world, 30)
+	local puffs, placed = world.puffs, sitePlaced(world)
+	hold(world)
+	for frame = 1, 40 do
+		aimAt(world, player, 2 + frame % 30, 0, 14)
+		world:step(1 / 60)
+	end
+	release(world)
+	steps(world, 5)
+	Test.check(sitePlaced(world) > placed, "more laid")
+	Test.equal(world.puffs, puffs, "but no dust far from the camera")
+	Test.equal(#world.errors, 0, errorsOf(world))
+end)
+
+Test.case("the boss wears its name and a faint ring of its shoo radius on the surface under it", function()
+	local world, player = boot({ Difficulty = "Hard", Batch = 60, Grasp = 60, Cooldown = 0.1 })
+	local folder = world.realGame:GetService("Workspace"):FindFirstChild("SiteBoss")
+	hold(world)
+	local boss
+	for frame = 1, 3000 do
+		local x, z = (frame * 7) % 41, (frame * 11) % 28
+		world.aimRay = Ray.new(ORIGIN + Vector3.new(x + 0.5, 40, z + 0.5) * STUDS, Vector3.new(0, -1, 0))
+		world:step(1 / 60)
+		boss = folder:FindFirstChild("Boss")
+		if boss then
+			break
+		end
+	end
+	release(world)
+	Test.check(boss, `the boss rose, built {hudText(world, player, "Built")}`)
+	steps(world, 30)
+	local label = boss:FindFirstChild("NameLabel")
+	Test.check(label and label:IsA("BillboardGui") and label.Adornee == boss, "a label over it")
+	Test.equal(label:FindFirstChild("Name").Text, capitalise(Theme.Boss.name), "its name, from Theme")
+	local anchor = boss:FindFirstChild("ShooRing")
+	local ring = anchor:FindFirstChild("Ring")
+	Test.equal(ring.Radius, BossConfig.Hard.shooRadius * STUDS, "the ring's radius is the shoo radius")
+	Test.check(ring.Transparency >= 0.4 and ring.InnerRadius > ring.Radius - 1, "a faint, thin ring")
+	Test.equal(ring.Adornee, anchor, "drawn on its anchor")
+	local at, under = boss.CFrame.Position, anchor.CFrame.Position
+	Test.check(math.abs(at.X - under.X) < 0.5 and math.abs(at.Z - under.Z) < 0.5, "the ring follows the boss")
+	local surface = (under.Y - 0.08 - ORIGIN.Y) / STUDS
+	Test.check(math.abs(surface - math.round(surface)) < 1e-3, `on a block's top or the ground, at {surface} cells`)
+	Test.check(under.Y < at.Y + STUDS, "under the boss")
 	Test.equal(#world.errors, 0, errorsOf(world))
 end)
 
