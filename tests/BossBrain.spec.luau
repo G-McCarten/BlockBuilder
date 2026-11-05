@@ -75,14 +75,34 @@ end
 
 Test.group("BossBrain")
 
+Test.case("each difficulty keeps its works, and Hard binds the site early", function()
+	local normal, hard, nightmare = BossConfig.Normal :: any, BossConfig.Hard :: any, BossConfig.Nightmare :: any
+	for _, tuning in { normal, hard, nightmare } do
+		Test.check(tuning.markers ~= nil, "markers at every difficulty")
+		Test.check(tuning.riseAt < tuning.relentAt, "rises before it relents")
+	end
+	for _, key in { "stubborn", "peace", "binding" } do
+		Test.check(normal[key] == nil, `Normal has no {key}`)
+		Test.check(hard[key] ~= nil and nightmare[key] ~= nil, `Hard and Nightmare have {key}`)
+	end
+	for _, key in { "minions", "collapse", "strike", "finalStand" } do
+		Test.check(hard[key] == nil, `Hard has no {key}`)
+		Test.check(nightmare[key] ~= nil, `Nightmare has {key}`)
+	end
+	-- The prototype's test plays a Hard site until it binds.
+	Test.check(hard.binding.at < 0.6, `Hard binds at {hard.binding.at}`)
+	Test.check(hard.binding.at < hard.binding.cap, "binds before the cap it holds the site at")
+end)
+
 Test.case("it rises at its share built, not before", function()
+	local riseAt = BossConfig.Normal.riseAt
 	local session = lodgeWithBoss(BossConfig.Normal, 1)
-	buildTo(session, 0.1)
+	buildTo(session, riseAt - 0.05)
 	run(session, 1)
-	Test.check(not (session.boss :: any).risen, "not at 10%")
-	buildTo(session, 0.16)
+	Test.check(not (session.boss :: any).risen, "not just short of riseAt")
+	buildTo(session, riseAt + 0.01)
 	run(session, 0.2)
-	Test.check((session.boss :: any).risen, "risen at 16%")
+	Test.check((session.boss :: any).risen, "risen just past riseAt")
 	Test.check(kinds(SiteSession.takeEvents(session)).boss_rise == 1, "announced")
 end)
 
@@ -131,8 +151,11 @@ Test.case("markers: a player breaks one for a bounty, an unbroken one bursts", f
 end)
 
 Test.case("hard: stubborn band, peace circle, and bindings that cap the site", function()
-	local session = lodgeWithBoss(BossConfig.Hard, 5)
-	buildTo(session, 0.35)
+	local hard = BossConfig.Hard
+	Test.check(hard.binding.cap > hard.stubborn.at + 0.02, "the cap leaves room past the band's share")
+	local session = lodgeWithBoss(hard, 5)
+	-- Past the shares the stubborn band and the bindings come at.
+	buildTo(session, math.max(hard.stubborn.at, hard.binding.at) + 0.02)
 	run(session, 0.5)
 	local hand = 0
 	for s = 1, session.site.count do
@@ -141,8 +164,10 @@ Test.case("hard: stubborn band, peace circle, and bindings that cap the site", f
 		end
 	end
 	Test.check(hand > 0, `a stubborn band of {hand} slots`)
-
 	local boss = session.boss :: BossBrain.Brain
+	Test.check(session.site.bound, "bound")
+	Test.equal(#boss.bindings, 3, "three bindings")
+
 	run(session, 30, 0.25)
 	Test.check(boss.arrived and boss.peaceOn, "it stopped and raised a peace circle")
 	SiteSession.move(session, 1, boss.x, boss.y, boss.z)
@@ -150,10 +175,6 @@ Test.case("hard: stubborn band, peace circle, and bindings that cap the site", f
 	Test.check(not boss.peaceOn, "shooing lifts the circle")
 	SiteSession.move(session, 1, -40, 1, -40)
 
-	buildTo(session, 0.6)
-	run(session, 0.5)
-	Test.check(session.site.bound, "bound")
-	Test.equal(#boss.bindings, 3, "three bindings")
 	buildTo(session, 0.9)
 	Test.check(session.site.placedCount <= session.site.boundCap, "held at the cap")
 	for _, b in boss.bindings do
