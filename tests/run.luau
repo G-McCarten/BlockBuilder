@@ -24,6 +24,7 @@ require("./Prediction.spec")
 require("./WorldArc.spec")
 require("./Timelapse.spec")
 require("./SiteList.spec")
+require("./Words.spec")
 require("./Prototype.spec")
 
 local failed = Test.summary()

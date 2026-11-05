@@ -639,43 +639,43 @@ if atmosphere == nil then
 	atmosphere.Parent = Lighting
 end
 
-local snowPart = Instance.new("Part")
-snowPart.Name = "Snowfall"
-snowPart.Anchored = true
-snowPart.CanCollide = false
-snowPart.CanQuery = false
-snowPart.CanTouch = false
-snowPart.Transparency = 1
-snowPart.Size = Vector3.new(160, 1, 160)
-snowPart.Parent = workspace
-local snow = Instance.new("ParticleEmitter")
-snow.Color = ColorSequence.new(Color3.fromRGB(245, 250, 255))
-snow.LightEmission = 0.3
-snow.Size = NumberSequence.new(0.18)
-snow.Lifetime = NumberRange.new(5, 7)
-snow.Speed = NumberRange.new(4, 7)
-snow.SpreadAngle = Vector2.new(25, 25)
-snow.Acceleration = Vector3.new(1.5, -1, 0)
-snow.EmissionDirection = Enum.NormalId.Bottom
-snow.Rate = 0
-snow.Parent = snowPart
+local weatherPart = Instance.new("Part")
+weatherPart.Name = "Weather"
+weatherPart.Anchored = true
+weatherPart.CanCollide = false
+weatherPart.CanQuery = false
+weatherPart.CanTouch = false
+weatherPart.Transparency = 1
+weatherPart.Size = Vector3.new(160, 1, 160)
+weatherPart.Parent = workspace
+local weather = Instance.new("ParticleEmitter")
+weather.Color = ColorSequence.new(Color3.fromRGB(245, 250, 255))
+weather.LightEmission = 0.3
+weather.Size = NumberSequence.new(0.18)
+weather.Lifetime = NumberRange.new(5, 7)
+weather.Speed = NumberRange.new(4, 7)
+weather.SpreadAngle = Vector2.new(25, 25)
+weather.Acceleration = Vector3.new(1.5, -1, 0)
+weather.EmissionDirection = Enum.NormalId.Bottom
+weather.Rate = 0
+weather.Parent = weatherPart
 
-local aurora = Instance.new("Part")
-aurora.Name = "Aurora"
-aurora.Anchored = true
-aurora.CanCollide = false
-aurora.CanQuery = false
-aurora.CanTouch = false
-aurora.CastShadow = false
-aurora.Material = Enum.Material.Neon
-aurora.Size = Vector3.new(600, 30, 2)
-local function placeAurora()
-	aurora.CFrame = CFrame.new(ORIGIN + Vector3.new(bp.sizeX * STUDS / 2, 260, bp.sizeZ * STUDS + 220))
+local skyGlow = Instance.new("Part")
+skyGlow.Name = "SkyGlow"
+skyGlow.Anchored = true
+skyGlow.CanCollide = false
+skyGlow.CanQuery = false
+skyGlow.CanTouch = false
+skyGlow.CastShadow = false
+skyGlow.Material = Enum.Material.Neon
+skyGlow.Size = Vector3.new(600, 30, 2)
+local function placeSkyGlow()
+	skyGlow.CFrame = CFrame.new(ORIGIN + Vector3.new(bp.sizeX * STUDS / 2, 260, bp.sizeZ * STUDS + 220))
 		* CFrame.Angles(math.rad(-20), 0, 0)
 end
-placeAurora()
-aurora.Transparency = 1
-aurora.Parent = workspace
+placeSkyGlow()
+skyGlow.Transparency = 1
+skyGlow.Parent = workspace
 
 local look = {}
 local function applyArc()
@@ -687,8 +687,8 @@ local function applyArc()
 	-- With an Atmosphere present, it, not Lighting's fog, colours the distance.
 	atmosphere.Density = look.density
 	atmosphere.Color = Lighting.FogColor
-	snow.Rate = look.snow
-	aurora.Transparency = 1 - 0.65 * look.aurora
+	weather.Rate = look.weather
+	skyGlow.Transparency = 1 - 0.65 * look.skyGlow
 end
 
 -- The boss ------------------------------------------------------------------
@@ -848,7 +848,7 @@ StateRemote.OnClientEvent:Connect(function(kind, buf, answers)
 			bp = Blueprint.load(require(blueprints:WaitForChild(siteId)))
 			index = SiteIndex.build(bp, SiteConfig.CHUNK_CELLS)
 			buildSilhouette()
-			placeAurora()
+			placeSkyGlow()
 			say(`Next: the {siteName(siteId)}.`)
 		end
 		resetMirror()
@@ -984,7 +984,7 @@ RunService.RenderStepped:Connect(function(dt)
 				moveCharacterTo(x, y :: number, z :: number)
 			end
 		end
-		snowPart.Position = root.Position + Vector3.new(0, 45, 0)
+		weatherPart.Position = root.Position + Vector3.new(0, 45, 0)
 	end
 
 	if bossTarget then

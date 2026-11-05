@@ -27,8 +27,8 @@ end)
 
 Test.case("Frostward's arc runs from blizzard to aurora", function()
 	local start, done = WorldArc.at(WorldArcConfig, 0), WorldArc.at(WorldArcConfig, 1)
-	Test.check(start.snow > 0 and done.snow == 0, "the snow stops")
-	Test.check(start.aurora == 0 and done.aurora == 1, "the aurora opens")
+	Test.check(start.weather > 0 and done.weather == 0, "the snow stops")
+	Test.check(start.skyGlow == 0 and done.skyGlow == 1, "the aurora opens")
 	Test.check(done.clockTime > start.clockTime, "night falls")
 	Test.check(done.fogEnd > start.fogEnd, "the fog lifts")
 	for _, key in WorldArcConfig do

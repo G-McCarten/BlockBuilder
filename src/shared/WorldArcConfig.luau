@@ -11,8 +11,8 @@
 	  clockTime   hour of the day
 	  brightness  Lighting brightness
 	  density     Atmosphere density
-	  snow        snowflakes a second around the player
-	  aurora      0 to 1, how strongly the aurora shows
+	  weather     particles a second falling around the player: here, snow
+	  skyGlow     0 to 1, how strongly the light in the sky shows: here, the aurora
 ]]
 
 return table.freeze({
@@ -23,8 +23,8 @@ return table.freeze({
 		clockTime = 15.5,
 		brightness = 1.6,
 		density = 0.42,
-		snow = 140,
-		aurora = 0,
+		weather = 140,
+		skyGlow = 0,
 	},
 	{
 		at = 0.5,
@@ -33,8 +33,8 @@ return table.freeze({
 		clockTime = 17.6,
 		brightness = 1.2,
 		density = 0.3,
-		snow = 60,
-		aurora = 0,
+		weather = 60,
+		skyGlow = 0,
 	},
 	{
 		at = 0.85,
@@ -43,8 +43,8 @@ return table.freeze({
 		clockTime = 19.5,
 		brightness = 0.85,
 		density = 0.22,
-		snow = 14,
-		aurora = 0.35,
+		weather = 14,
+		skyGlow = 0.35,
 	},
 	{
 		at = 1,
@@ -53,7 +53,7 @@ return table.freeze({
 		clockTime = 21,
 		brightness = 0.6,
 		density = 0.15,
-		snow = 0,
-		aurora = 1,
+		weather = 0,
+		skyGlow = 1,
 	},
 })
