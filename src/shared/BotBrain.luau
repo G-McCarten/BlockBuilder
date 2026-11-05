@@ -39,10 +39,10 @@ export type Bot = {
 	placeable: (slot: number) -> boolean,
 }
 
--- What a bot's owner can listen for.
+-- What a bot's owner can listen for. clicked gets the blocks a click placed.
 export type Hooks = {
 	bought: ((bot: Bot, nodeId: string, level: number) -> ())?,
-	clicked: ((bot: Bot, ok: boolean, reason: string) -> ())?,
+	clicked: ((bot: Bot, ok: boolean, reason: string, count: number) -> ())?,
 }
 
 -- The parts of SkillTuning a bot plays by.
@@ -211,9 +211,9 @@ function BotBrain.step(bot: Bot, session: any, tuning: Tuning, dt: number, tool:
 	if session.clock - worker.lastClick >= worker.stats.cooldown then
 		local n = SiteIndex.nearest(session.index, bot.x, bot.y, bot.z, worker.stats.grasp, bot.placeable, 1, found)
 		if n > 0 then
-			local ok, reason = SiteSession.request(session, bot.id, found[1])
+			local ok, reason, count = SiteSession.request(session, bot.id, found[1])
 			if hooks and hooks.clicked then
-				hooks.clicked(bot, ok, reason)
+				hooks.clicked(bot, ok, reason, count)
 			end
 		end
 	end
