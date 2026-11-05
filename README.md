@@ -10,6 +10,8 @@ This repo was started **before** the Unharvester fork (the formula's Phase 0), i
 
 The prototype runs the four sites in a plain place, starting with the Woodcutter's Lodge (5,928 blocks), and moves to the next when one is finished. It's there to judge the click (the Phase 2 gate) and the shape of a run.
 
+[`docs/playtest.md`](docs/playtest.md) is a checklist for a Studio session: everything the tests here can't settle, and what to report for the gate.
+
 1. Install the tools with `aftman install` (Rojo, Lune, StyLua, selene).
 2. Build a place and open it in Studio, then press Play:
 
