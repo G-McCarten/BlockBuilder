@@ -3,10 +3,15 @@ local roblox = require("@lune/roblox")
 local FakeRoblox = require("./lib/FakeRoblox")
 local PlaceBuilder = require("./lib/PlaceBuilder")
 local Test = require("./lib/Test")
+local Theme = require("../src/shared/Theme")
 
 local Vector3, CFrame, Ray, Enum = roblox.Vector3, roblox.CFrame, roblox.Ray, roblox.Enum
 local STUDS = 3
 local ORIGIN = Vector3.new(24, 0, 24)
+
+local function capitalise(text: string): string
+	return string.upper(string.sub(text, 1, 1)) .. string.sub(text, 2)
+end
 
 local function boot(attributes: { [string]: any }?)
 	local game = PlaceBuilder.build("default.project.json")
@@ -400,6 +405,42 @@ Test.case("a finished site is announced, then a fresh one replaces it", function
 	Test.equal(embers(world, player), 0, "with an empty purse")
 	Test.equal(world.realGame:GetService("Workspace"):GetAttribute("CurrentSite"), "IceBridge", "the next site")
 	Test.equal(hudText(world, player, "Built"), "Ice Bridge: laid 0%", "the client loaded it")
+	local sign = world.realGame:GetService("Workspace"):FindFirstChild("SiteProps"):FindFirstChild("SiteSign")
+	local front = sign:FindFirstChild("Board"):FindFirstChild("Front")
+	Test.equal(front:FindFirstChild("SiteName").Text, "Ice Bridge", "the sign names the next site")
+	Test.equal(
+		world.realGame:GetService("Workspace"):GetAttribute("CurrentDifficulty"),
+		"None",
+		"the next site reads the Difficulty set since"
+	)
+	Test.equal(#world.errors, 0, errorsOf(world))
+end)
+
+Test.case("the hoist pads carry labels, a sign names the site, and the spawn faces it", function()
+	local world = boot({ Site = "GreatHall" })
+	local workspace = world.realGame:GetService("Workspace")
+	local props = workspace:FindFirstChild("SiteProps")
+	local pads = 0
+	for _, pad in props:GetChildren() do
+		if pad.Name == "HoistPad" then
+			pads += 1
+			local label = pad:FindFirstChild("Label")
+			Test.check(label and label:IsA("BillboardGui") and label.Adornee == pad, "a label over each pad")
+			Test.equal(label:FindFirstChild("Title").Text, `{capitalise(Theme.Hoist)} pad`, "named from Theme")
+		end
+	end
+	Test.equal(pads, 2, "two pads")
+	local board = props:FindFirstChild("SiteSign"):FindFirstChild("Board")
+	for _, face in { "Front", "Back" } do
+		Test.equal(board:FindFirstChild(face):FindFirstChild("SiteName").Text, "Great Hall", `the {face} names it`)
+	end
+	for _, part in props:FindFirstChild("SiteSign"):GetChildren() do
+		Test.check(not part.CanCollide and not part.CanQuery, "the sign never stops a player or the camera")
+	end
+	Test.check(board.CFrame.Position.Z < ORIGIN.Z, "the sign stands before the site")
+	local spawn = workspace:FindFirstChild("SpawnLocation")
+	Test.check(spawn.CFrame.LookVector.Z > 0.99, `the spawn faces the site: {spawn.CFrame.LookVector}`)
+	Test.equal(workspace:GetAttribute("CurrentDifficulty"), "Normal", "no Difficulty plays Normal")
 	Test.equal(#world.errors, 0, errorsOf(world))
 end)
 
