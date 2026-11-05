@@ -1,0 +1,30 @@
+name: check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The same tool versions as aftman.toml, built from crates.io into
+      # their own folder so the cache holds only them.
+      - uses: actions/cache@v4
+        with:
+          path: ~/tools
+          key: tools-lune-0.11.1-stylua-2.6.0-selene-0.31.0
+
+      - name: Install tools
+        run: |
+          export PATH="$HOME/tools/bin:$PATH"
+          command -v lune || cargo install --root ~/tools lune --version 0.11.1 --locked
+          command -v stylua || cargo install --root ~/tools stylua --version 2.6.0 --locked --features luau
+          command -v selene || cargo install --root ~/tools selene --version 0.31.0 --locked
+
+      - name: Check
+        run: |
+          export PATH="$HOME/tools/bin:$PATH"
+          lune run tools/check
