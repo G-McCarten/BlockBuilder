@@ -35,7 +35,7 @@ What it does:
 - **Blocks:** your clicks show at once and roll back if the server refuses them. Blocks near the camera drop in with a small squash and a puff of dust, and a tick climbs in pitch during a fast chain.
 - **Ghosts:** the finished build always shows as a faint silhouette. READY slots near you pulse as ghosts, and the one you'd lay shows brighter than the rest.
 - **Collisions:** a block that lands where you stand moves you onto it, and a character stuck for 2 seconds is moved clear.
-- **The boss:** the Rime rises at 15% built. Walk up to it to shoo it away, and break its frost marks (and, on Hard, its ice chains) for a bounty. It wears its name, and a faint ring under it shows how close you must walk to shoo it.
+- **The boss:** the Rime rises at 20% built. Walk up to it to shoo it away, and break its frost marks (and, on Hard, its ice chains) for a bounty. It wears its name, and a faint ring under it shows how close you must walk to shoo it.
 - **The world:** the hoist pads are labelled, and a sign before the site names it. The blizzard thins and night falls as the hold rises. When it's finished, a ten-second timelapse raises the build again in the order it was placed. Each player is told their share of the site's Hearthstones, split by blocks placed, and what they did. 30 seconds later the next site starts, with a bare tree and an empty purse.
 - **Joining late:** a big site is drawn over a few frames, nearest first.
 
@@ -68,7 +68,7 @@ It's a sandbox, not the game. It has no meta, saves, eggs, mounts, parties or me
 | CollisionBoxes: greedy-merged boxes per chunk (4.5) | `src/shared/CollisionBoxes.luau` | tested |
 | Access: stand cells, free surface, working layer (4.4) | `src/shared/Access.luau` | tested |
 | SiteActions: click, batch, chain, ability sweep, power tool, pets (5.1, 5.2) | `src/shared/SiteActions.luau` | tested |
-| BossEffects, BossBrain, BossConfig: the boss at three difficulties (5.3) | `src/shared/Boss*.luau` | tested, tuning provisional |
+| BossEffects, BossBrain, BossConfig: the boss at three difficulties (5.3) | `src/shared/Boss*.luau` | tested, tuned by the sim |
 | SiteSession: one site's run on the server, with each player's counts for tasks and achievements | `src/shared/SiteSession.luau` | tested |
 | SkillTuning: placeholder skill tree and base stats | `src/shared/SkillTuning.luau` | tuned by the sim |
 | WorldArc, WorldArcConfig: the look by share built | `src/shared/WorldArc*.luau` | tested |
@@ -94,17 +94,22 @@ The tests boot the place, lay blocks by holding the mouse, buy a skill, let a Ha
 
 ### What the sim measures
 
-`lune run tools/sim/run` plays whole runs with bots through `SiteSession`. Bots buy the cheapest skill they can afford, use the ability when it's ready, break markers and bindings, and shoo the boss; otherwise they work the nearest slot. The economy in `src/shared/SkillTuning.luau` is a placeholder, tuned so a solo first run of the lodge takes about 30 minutes. Measured on the WoodcuttersLodge:
+`lune run tools/sim/run` plays whole runs with bots through `SiteSession`. Bots buy the cheapest skill they can afford (or, with `--buy value`, the level that adds the most pay for its price), use the ability when it's ready, break markers and bindings, and shoo the boss; otherwise they work the nearest slot. The economy in `src/shared/SkillTuning.luau` is a placeholder, tuned so a solo first run of the lodge takes about 30 minutes. Solo, minutes over 20 seeds each, every run finished:
+
+| Site | No boss | Normal | Hard | Nightmare |
+|---|---|---|---|---|
+| WoodcuttersLodge | 29.6 | 32.1 (+9%) | 34.6 (+17%) | 38.8 (+31%) |
+| IceBridge | 32.5 | 34.8 (+7%) | 37.4 (+15%) | 50.0 (+54%) |
+| Watchtower | 37.6 | 40.2 (+7%) | 44.1 (+17%) | 48.4 (+29%) |
+| GreatHall | 43.2 | 43.5 (+1%) | 46.6 (+8%) | 52.8 (+22%) |
 
 | Run | Result |
 |---|---|
-| Solo, no boss, 10 seeds | 29.8 min (28.8 to 30.4) |
-| Solo, Normal, 20 seeds | 31.2 min (27.9 to 32.9), all finished |
-| Solo, Hard, 20 seeds | 37.0 min (32.7 to 47.4), all finished |
-| Solo, Nightmare, 20 seeds | 39.9 min (36.0 to 45.4), all finished |
-| 2, 3, 4 players, Normal | 0.54, 0.36, 0.29 of the solo time (Unharvester: 0.51, 0.36, 0.27) |
+| 2, 3, 4 players, Normal, lodge | 0.51, 0.34, 0.26 of the solo time (Unharvester: 0.51, 0.36, 0.27); each player's payout a minute is 0.95 to 0.99 of the solo rate |
+| Bots buying by value, lodge, no boss | 20.4 min, a third faster than cheapest first |
+| Blocks a click lays itself, lodge | at most 3.2 (cheapest first) or 4.0 (by value), far from the formula's "dozens" |
 
-The later sites, solo against Normal over 3 seeds: IceBridge 36.0, Watchtower 40.8 and GreatHall 43.9 minutes, all finished. Their sizes are placeholders until the renderer's stress test sets each site's ceiling.
+`--clicks`, `--skills`, `--purse`, `--undo` and `--pay` print blocks per click, when each skill level is bought, run currency, the boss's undo rates and payout shares, by minute. `--site all --boss all` runs every site at every difficulty. [`docs/balance.md`](docs/balance.md) has every table, the command behind it, and how the boss was balanced. The sites' sizes are placeholders until the renderer's stress test sets each site's ceiling.
 
 The Ice Bridge crosses on five graded ice arches between twin-tower stone gates, with lanterns along its rope rails. The Watchtower stands in a walled yard; a stair winds round its outside, rising with the walls, up to a gallery, a glowing lantern room and a flared roof. The Great Hall has buttressed bays of tall windows, a gabled porch, dormers, a ridge louvre and a gable chimney. Roofs and rails wait for the work beneath them: beams, corners, a closed deck. Every step is a full block, so climbing them takes a jump.
 
