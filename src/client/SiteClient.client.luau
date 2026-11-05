@@ -6,10 +6,11 @@
 
 	The finished build always shows as one faint silhouette, made of the
 	boxes CollisionBoxes merges the whole blueprint into. Chunks near the
-	camera draw each block as its own pooled Part; far ones draw their
-	standing blocks as a few merged boxes per kind, rebuilt on a budget, and
-	a chunk switches with hysteresis, building its new form before dropping
-	the old so nothing pops. A finished site
+	camera draw each block as its own pooled Part, which doesn't collide; a few
+	invisible merged boxes per near chunk do, rebuilt on a budget as it
+	changes. Far chunks draw their standing blocks as a few merged boxes per
+	kind, which collide too. A chunk switches with hysteresis, building its
+	new form before dropping the old, so nothing pops. A finished site
 	plays the ending: the build rises again in the order it was placed.
 
 	The client keeps a mirror of the site, fed by SiteRemotes.State, with
@@ -108,6 +109,7 @@ local MAX_DROPS_PER_FRAME = 24
 local NEAR_STUDS = 90
 local FAR_STUDS = 110
 local MERGES_PER_FRAME = 2
+local COLLISION_REBUILDS_PER_FRAME = 4
 
 local function cellPosition(s: number): Vector3
 	return ORIGIN + Vector3.new(bp.x[s] + 0.5, bp.y[s] + 0.5, bp.z[s] + 0.5) * STUDS
@@ -239,9 +241,11 @@ end
 
 local chunkFar: { [number]: boolean } = {}
 local farDirty: { [number]: boolean } = {}
+local collisionDirty: { [number]: boolean } = {}
 
 local function redraw(s: number)
 	local c = index.chunkOf[s]
+	collisionDirty[c] = true
 	if chunkFar[c] then
 		-- Far: the chunk's merged boxes will be rebuilt, on a budget.
 		farDirty[c] = true
@@ -269,7 +273,8 @@ local function redraw(s: number)
 			part.CanTouch = false
 			blocks[s] = part
 		end
-		part.CanCollide = standing
+		-- The chunk's collision boxes do the colliding.
+		part.CanCollide = false
 		if setting then
 			settingFrom[s] = { mirror.progress[s], mirror.rate[s], os.clock() }
 			part.Transparency = 0.7
@@ -296,6 +301,44 @@ end
 local farFolder = Instance.new("Folder")
 farFolder.Name = "SiteFar"
 farFolder.Parent = workspace
+
+local collisionFolder = Instance.new("Folder")
+collisionFolder.Name = "SiteCollision"
+collisionFolder.Parent = workspace
+local collisionParts: { [number]: { BasePart } } = {}
+
+local function clearCollision(c: number)
+	local list = collisionParts[c]
+	if list then
+		for _, part in list do
+			part:Destroy()
+		end
+		collisionParts[c] = nil
+	end
+	collisionDirty[c] = nil
+end
+
+-- A near chunk's invisible collision: its standing blocks merged into boxes.
+local function buildCollision(c: number)
+	clearCollision(c)
+	local list = {}
+	local out = {}
+	local n = CollisionBoxes.build(index, mirror, c, out)
+	for b = 0, n - 1 do
+		local o = b * 6
+		local x0, y0, z0, x1, y1, z1 = out[o + 1], out[o + 2], out[o + 3], out[o + 4], out[o + 5], out[o + 6]
+		local part = Instance.new("Part")
+		part.Anchored = true
+		part.CanQuery = false
+		part.CanTouch = false
+		part.Transparency = 1
+		part.Size = Vector3.new(x1 - x0, y1 - y0, z1 - z0) * STUDS
+		part.CFrame = CFrame.new(ORIGIN + Vector3.new(x0 + x1, y0 + y1, z0 + z1) * (STUDS / 2))
+		part.Parent = collisionFolder
+		table.insert(list, part)
+	end
+	collisionParts[c] = list
+end
 local farParts: { [number]: { BasePart } } = {}
 local zeroRate = setmetatable({}, {
 	__index = function()
@@ -365,6 +408,7 @@ local function setFar(c: number, far: boolean)
 	quiet = true
 	if far then
 		buildFar(c)
+		clearCollision(c)
 		chunkFar[c] = true
 		for i = index.slotStart[c], index.slotStart[c + 1] - 1 do
 			local s = index.slotList[i]
@@ -378,6 +422,7 @@ local function setFar(c: number, far: boolean)
 		for i = index.slotStart[c], index.slotStart[c + 1] - 1 do
 			redraw(index.slotList[i])
 		end
+		buildCollision(c)
 		clearFar(c)
 		farDirty[c] = nil
 	end
@@ -459,8 +504,12 @@ local function clearAll()
 	for c in farParts do
 		clearFar(c)
 	end
+	for c in collisionParts do
+		clearCollision(c)
+	end
 	table.clear(chunkFar)
 	table.clear(farDirty)
+	table.clear(collisionDirty)
 end
 
 local timelapse: { order: { number }, started: number, shown: number }? = nil
@@ -1099,6 +1148,18 @@ RunService.RenderStepped:Connect(function(dt)
 				merges += 1
 			else
 				farDirty[c] = nil
+			end
+		end
+		local rebuilds = 0
+		for c in collisionDirty do
+			if rebuilds >= COLLISION_REBUILDS_PER_FRAME then
+				break
+			end
+			if chunkFar[c] then
+				collisionDirty[c] = nil
+			else
+				buildCollision(c)
+				rebuilds += 1
 			end
 		end
 	end

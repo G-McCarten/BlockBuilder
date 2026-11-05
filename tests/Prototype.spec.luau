@@ -310,6 +310,43 @@ Test.case("pets work for their owner and are drawn", function()
 	Test.equal(#world.errors, 0, errorsOf(world))
 end)
 
+Test.case("near chunks collide through merged invisible boxes, not their blocks", function()
+	local world = boot({ Batch = 400, Grasp = 80, Cooldown = 0.05, Difficulty = "None" })
+	hold(world)
+	for frame = 1, 60 do
+		local x, z = (frame * 7) % 41, (frame * 11) % 28
+		world.aimRay = Ray.new(ORIGIN + Vector3.new(x + 0.5, 40, z + 0.5) * STUDS, Vector3.new(0, -1, 0))
+		world:step(1 / 60)
+	end
+	release(world)
+	world.camera.CFrame = CFrame.new(ORIGIN + Vector3.new(60, 30, 40))
+	for _ = 1, 60 do
+		world:step(1 / 60)
+	end
+	local workspace = world.realGame:GetService("Workspace")
+	local blocks = workspace:FindFirstChild("SiteBlocks"):GetChildren()
+	local collision = workspace:FindFirstChild("SiteCollision"):GetChildren()
+	for _, part in blocks do
+		Test.check(not part.CanCollide, "a block part collides on its own")
+	end
+	local cells = 0
+	for _, part in collision do
+		Test.check(part.CanCollide and part.Transparency == 1, "collision boxes are solid and invisible")
+		local size = part.Size / STUDS
+		cells += math.round(size.X * size.Y * size.Z)
+	end
+	Test.equal(cells, #blocks, "the boxes cover exactly the standing blocks")
+	Test.check(#collision < #blocks / 4, `{#blocks} blocks collide through {#collision} boxes`)
+
+	-- Far away, the visual boxes collide and the near boxes go.
+	world.camera.CFrame = CFrame.new(ORIGIN + Vector3.new(60, 30, 2000))
+	for _ = 1, 30 do
+		world:step(1 / 60)
+	end
+	Test.equal(#workspace:FindFirstChild("SiteCollision"):GetChildren(), 0, "no near collision far away")
+	Test.equal(#world.errors, 0, errorsOf(world))
+end)
+
 Test.case("a finished site is announced, then a fresh one replaces it", function()
 	local world, player = boot()
 	world.workspaceProxy:SetAttribute("Difficulty", "None")
