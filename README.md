@@ -6,6 +6,18 @@ Frostward is built with the formula in [`BUILDER_GAME_FORMULA_PROMPT.md`](BUILDE
 
 This repo was started **before** the Unharvester fork (the formula's Phase 0), in sessions that couldn't reach Unharvester's source or Studio. It holds the new verb's core as pure, tested logic, a run sim, and a graybox prototype you can play in Studio now. Run Phase 0 on the PC, then bring this work into the fork.
 
+## Where it stands
+
+The proofs the formula's section 7 asks for, as far as this repo can take them before the fork:
+
+| Phase | Proof | State |
+|---|---|---|
+| 1 | 10,000+ random placements and undos with no invariant broken; codec round trip | done: `tests/BuildSite.spec.luau`, `tests/SiteCodec.spec.luau`, and [`docs/invariants.md`](docs/invariants.md) for all six invariants |
+| 2 | **Gate:** you play it and judge the click; the stress-test ceiling on Low at phone size | ready for you: [`docs/playtest.md`](docs/playtest.md) |
+| 3 | Sim and a real bot run within 10% of 30 minutes; every pet rarity works | sim 29.6 min solo; the bot run is in the playtest list; pet rarities wait for the fork's PetService |
+| 4 | 20 seeded bot runs all finish, Hard differs from Normal, co-op ratios near 5.4, two real clients in Local Server | sim: every site at every difficulty finishes, Hard +8 to 17% against Normal's +1 to 9%, co-op 0.51, 0.34, 0.26; Local Server is in the playtest list |
+| 5 to 7 | The look, all content, launch | need the fork, Studio and your approval |
+
 ## Play the prototype
 
 The prototype runs the four sites in a plain place, starting with the Woodcutter's Lodge (5,928 blocks), and moves to the next when one is finished. It's there to judge the click (the Phase 2 gate) and the shape of a run.
