@@ -29,6 +29,7 @@ Controls:
 
 What it does:
 
+- **Hints:** a tip at the bottom of the screen when its moment comes: how to lay, when you can afford a skill, the boss and its works, the crew, and the hoist pads.
 - **Blocks:** your clicks show at once and roll back if the server refuses them. Blocks near the camera drop in with a small squash, and a tick climbs in pitch during a fast chain.
 - **Ghosts:** the finished build always shows as a faint silhouette. READY slots near you pulse as ghosts.
 - **Collisions:** a block that lands where you stand moves you onto it, and a character stuck for 2 seconds is moved clear.
@@ -69,6 +70,7 @@ It's a sandbox, not the game. It has no meta, saves, eggs, mounts, parties or me
 | SkillTuning: placeholder skill tree and base stats | `src/shared/SkillTuning.luau` | tuned by the sim |
 | WorldArc, WorldArcConfig: the look by share built | `src/shared/WorldArc*.luau` | tested |
 | Timelapse: the ending's order and pacing (4.7) | `src/shared/Timelapse.luau` | tested |
+| Hints and HintConfig: first-time tips, one at a time | `src/shared/Hint*.luau` | tested |
 | Theme: player-facing words | `src/shared/Theme.luau` | slot pick A |
 | Prototype server and client | `src/server`, `src/client` | run under a Roblox stand-in in tests |
 | BotBrain: a bot that plays a site, for the sim and for testing alone in Studio | `src/shared/BotBrain.luau` | tested |

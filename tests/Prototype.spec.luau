@@ -98,6 +98,10 @@ Test.case("the server and client boot without errors and build their HUD", funct
 	Test.equal(embers(world, player), 0, "an empty purse")
 	local silhouette = world.realGame:GetService("Workspace"):FindFirstChild("SiteSilhouette")
 	Test.check(silhouette and #silhouette:GetChildren() > 100, "the finished build's silhouette shows")
+	for _ = 1, 20 do
+		world:step(1 / 60)
+	end
+	Test.check(string.find(hudText(world, player, "Hint"), "Click a glowing ghost", 1, true) ~= nil, "the first hint")
 end)
 
 Test.case("the Site attribute starts any site, and its blocks lay", function()

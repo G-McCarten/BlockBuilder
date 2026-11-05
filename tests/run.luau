@@ -25,6 +25,7 @@ require("./WorldArc.spec")
 require("./Timelapse.spec")
 require("./SiteList.spec")
 require("./Words.spec")
+require("./Hints.spec")
 require("./Prototype.spec")
 require("./Clients.spec")
 

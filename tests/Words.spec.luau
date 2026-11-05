@@ -16,6 +16,7 @@ local CONTENT = {
 	["src/shared/SiteList.luau"] = true,
 	["src/shared/WorldArcConfig.luau"] = true,
 	["src/shared/BossConfig.luau"] = true,
+	["src/shared/HintConfig.luau"] = true,
 }
 
 local CURRENT = {

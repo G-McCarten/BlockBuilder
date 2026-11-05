@@ -44,6 +44,8 @@ local KindLooks = require(Shared:WaitForChild("KindLooks"))
 local BossConfig = require(Shared:WaitForChild("BossConfig"))
 local BuildSite = require(Shared:WaitForChild("BuildSite"))
 local CollisionBoxes = require(Shared:WaitForChild("CollisionBoxes"))
+local HintConfig = require(Shared:WaitForChild("HintConfig"))
+local Hints = require(Shared:WaitForChild("Hints"))
 local Prediction = require(Shared:WaitForChild("Prediction"))
 local SiteCodec = require(Shared:WaitForChild("SiteCodec"))
 local SiteConfig = require(Shared:WaitForChild("SiteConfig"))
@@ -603,6 +605,11 @@ local function label(name: string, size: UDim2, position: UDim2, textSize: numbe
 end
 
 local builtLabel = label("Built", UDim2.fromOffset(300, 26), UDim2.new(0.5, 0, 0, 8), 20)
+local hintLabel = label("Hint", UDim2.fromOffset(620, 26), UDim2.new(0.5, 0, 1, -130), 18)
+local hintsShown: { [string]: boolean } = {}
+local hintUntil, nextHintAt = 0, 0
+local myPlaced = 0
+local bossView: { [string]: any }? = nil
 local announce = label("Announce", UDim2.fromOffset(640, 30), UDim2.new(0.5, 0, 0, 40), 22)
 local announceUntil = 0
 
@@ -977,6 +984,7 @@ local function cellPoint(x: number, y: number, z: number): Vector3
 end
 
 BossRemote.OnClientEvent:Connect(function(view)
+	bossView = view
 	for _, part in works do
 		part:Destroy()
 	end
@@ -1128,6 +1136,9 @@ StateRemote.OnClientEvent:Connect(function(kind, buf, answers)
 		end)
 	end
 	for _, answer in answers or {} do
+		if answer[2] then
+			myPlaced += 1
+		end
 		Prediction.answer(pred, answer[1], answer[2])
 	end
 end)
@@ -1299,6 +1310,38 @@ RunService.RenderStepped:Connect(function(dt)
 		end
 		applyArc()
 		refreshShop()
+		if now >= nextHintAt then
+			local cheapest, bought = math.huge, 0
+			for _, node in SkillTuning.nodes do
+				local level = player:GetAttribute(`Level_{node.id}`) or 0
+				bought += level
+				if level < node.max then
+					cheapest = math.min(cheapest, SkillTuning.price(node, level))
+				end
+			end
+			local view = bossView
+			local hint = Hints.pick({
+				placed = myPlaced,
+				purse = purse(),
+				cheapest = cheapest,
+				bought = bought,
+				workingLayer = Access.workingLayer(bp, mirror) or 0,
+				bossRisen = view ~= nil and view.risen and not view.relented,
+				markers = if view then #view.markers else 0,
+				bound = view ~= nil and #view.bindings > 0,
+				peace = view ~= nil and view.peace ~= nil,
+				crewUnlocked = (player:GetAttribute(`Level_{SkillTuning.abilityNode}`) or 0) >= 1,
+			}, hintsShown)
+			if hint then
+				hintsShown[hint] = true
+				hintLabel.Text = HintConfig[hint]
+				hintUntil = now + 7
+				nextHintAt = now + 9
+			end
+		end
+		if now > hintUntil then
+			hintLabel.Text = ""
+		end
 		Prediction.expire(pred, now, 4)
 	end
 end)
