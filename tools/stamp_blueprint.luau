@@ -11,6 +11,10 @@
 	  tools/blueprints/<Name>.rbxm or .rbxmx  a Studio model of grid-aligned
 	                                          parts, read by tools/lib/ModelSource
 
+	docs/authoring.md covers building a model in Studio. For a model, the tool
+	prints each group's stages, a refused part's message without a traceback,
+	and the part behind each slot a validation problem names.
+
 	Reach is checked with SiteConfig's base grasp and headroom.
 ]]
 
@@ -32,6 +36,7 @@ end
 
 local outPath = `src/shared/Blueprints/{name}.luau`
 local sourcePath, source
+local fromModel = false
 for _, ext in { "luau", "rbxm", "rbxmx" } do
 	local path = `tools/blueprints/{name}.{ext}`
 	if fs.isFile(path) then
@@ -43,7 +48,13 @@ for _, ext in { "luau", "rbxm", "rbxmx" } do
 		if ext == "luau" then
 			source = luau.load(fs.readFile(path), { debugName = path })()
 		else
-			source = ModelSource.fromContents(fs.readFile(path), name, SiteConfig.BLOCK_STUDS)
+			-- A refusal names the part to fix, so it needs no traceback.
+			local ok, result = pcall(ModelSource.fromContents, fs.readFile(path), name, SiteConfig.BLOCK_STUDS)
+			if not ok then
+				print(`{path}: {result}`)
+				process.exit(1)
+			end
+			source, fromModel = result, true
 		end
 	end
 end
@@ -63,10 +74,21 @@ print(
 	`{name}: {stats.count} slots, {stats.sizeX} x {stats.sizeY} x {stats.sizeZ} cells, `
 		.. `{stats.overhangs} overhangs, {stats.extraSupports} extra supports, depth {stats.depth}`
 )
+-- So an author sees which Stage attributes were read.
+if fromModel then
+	for _, line in source.stages do
+		print(`  stages in {line}`)
+	end
+end
 if not report.ok then
-	print(`{report.errorCount} problems:`)
+	print(`{report.errorCount} problem{if report.errorCount == 1 then "" else "s"}:`)
 	for _, message in report.errors do
 		print(`  {message}`)
+		if fromModel then
+			for _, line in ModelSource.explain(source, message) do
+				print(`    {line}`)
+			end
+		end
 	end
 	process.exit(1)
 end
