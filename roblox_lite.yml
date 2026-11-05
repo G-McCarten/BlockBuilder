@@ -40,3 +40,5 @@ globals:
     any: true
   task:
     any: true
+  UserSettings:
+    any: true

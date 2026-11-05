@@ -35,6 +35,19 @@
 	  Cooldown, Grasp, Batch, SetTime, ChainChance, ChainRadius,
 	  PerfectChance, CrewWidth, CrewCooldown
 	               override that stat for everyone, read whenever one changes
+	  StressTest   plays a generated site (StressSite) instead, for the
+	               renderer's stress test, read when a site starts: a number
+	               of blocks from 1,000 to 65,535, or "Ladder" to step
+	               through StressSite.LADDER, or a list of sizes such as
+	               "30000, 35000" to step through those. CurrentSite names it
+	               Stress:<blocks>, and clients build the same blueprint from
+	               that. Everything below its top layer is laid at once, and
+	               the boss is off.
+	  StressStepSeconds
+	               how long each ladder step holds, 20 if unset, counted from
+	               when a client says on SiteRemotes.Stress that it has drawn
+	               the step. While a ladder runs, the server sets StressStep
+	               and StressSteps to the step in play and how many there are.
 ]]
 
 local Players = game:GetService("Players")
@@ -46,10 +59,12 @@ local Blueprint = require(Shared:WaitForChild("Blueprint"))
 local BossBrain = require(Shared:WaitForChild("BossBrain"))
 local BotBrain = require(Shared:WaitForChild("BotBrain"))
 local BossConfig = require(Shared:WaitForChild("BossConfig"))
+local BuildSite = require(Shared:WaitForChild("BuildSite"))
 local SiteConfig = require(Shared:WaitForChild("SiteConfig"))
 local SiteList = require(Shared:WaitForChild("SiteList"))
 local SiteSession = require(Shared:WaitForChild("SiteSession"))
 local SkillTuning = require(Shared:WaitForChild("SkillTuning"))
+local StressSite = require(Shared:WaitForChild("StressSite"))
 local Theme = require(Shared:WaitForChild("Theme"))
 local Timelapse = require(Shared:WaitForChild("Timelapse"))
 
@@ -191,12 +206,8 @@ end
 sign.Parent = props
 props.Parent = workspace
 
--- Loads site number n of SiteList and fits the ground, pads and sign to it.
-local function loadSite(n: number)
-	siteNumber = n
-	local entry = SiteList[n]
-	bp = Blueprint.load(require(blueprints:WaitForChild(entry.id)))
-	workspace:SetAttribute("CurrentSite", entry.id)
+-- Fits the ground, pads and sign to bp, the site in play, which the sign names.
+local function fitSite(name: string)
 	pads[1].Position = ORIGIN + Vector3.new(-1.5 * STUDS, 0.2, -1.5 * STUDS)
 	pads[2].Position = ORIGIN + Vector3.new((bp.sizeX + 1.5) * STUDS, 0.2, -1.5 * STUDS)
 	-- In line with the spawn where the site is wide enough, else at its middle.
@@ -211,12 +222,28 @@ local function loadSite(n: number)
 		post.Position = Vector3.new(x + side * (SIGN_SIZE.X / 2 - 0.4), ORIGIN.Y + postSize.Y / 2, z)
 	end
 	for _, text in signNames do
-		text.Text = entry.name
+		text.Text = name
 	end
 	if ground then
 		ground.Size = Vector3.new(bp.sizeX * STUDS + 200, 2, bp.sizeZ * STUDS + 200)
 		ground.Position = ORIGIN + Vector3.new(bp.sizeX * STUDS / 2, -1, bp.sizeZ * STUDS / 2)
 	end
+end
+
+-- Loads site number n of SiteList.
+local function loadSite(n: number)
+	local entry = SiteList[n]
+	bp = Blueprint.load(require(blueprints:WaitForChild(entry.id)))
+	workspace:SetAttribute("CurrentSite", entry.id)
+	fitSite(entry.name)
+end
+
+-- Builds the stress site of count blocks. Clients build the same blueprint
+-- from the count in its id, so none crosses the network.
+local function loadStress(count: number)
+	bp = Blueprint.build(StressSite.source(count))
+	workspace:SetAttribute("CurrentSite", StressSite.id(count))
+	fitSite(StressSite.name(count))
 end
 
 local function chosenSite(): number
@@ -246,6 +273,7 @@ local ToolRemote = remote("Tool")
 local StateRemote = remote("State")
 local BossRemote = remote("Boss")
 local EventRemote = remote("Event")
+local StressRemote = remote("Stress")
 workspace:SetAttribute("SiteOrigin", ORIGIN)
 remotes.Parent = ReplicatedStorage
 
@@ -370,13 +398,64 @@ local function sendSnapshot(player: Player)
 	BossRemote:FireClient(player, if session.boss then BossBrain.view(session.boss) else nil)
 end
 
+-- The stress test: the size of the stress site in play, nil for a SiteList
+-- site; while a ladder runs, its sizes and the step in play; and when that
+-- step's hold ends, once a client has drawn it.
+local stressCount: number? = nil
+local ladder: { number }? = nil
+local ladderStep = 0
+local holdUntil: number? = nil
+
+-- Reads StressTest as a site starts: the stress site's size, or nil. A
+-- ladder starts at its first step and keeps its place until it's done.
+local function stressSize(): number?
+	local sizes, isLadder = StressSite.plan(workspace:GetAttribute("StressTest"))
+	if sizes == nil or not isLadder then
+		ladder = nil
+		return if sizes then sizes[1] else nil
+	end
+	if ladder == nil then
+		ladder, ladderStep = sizes, 1
+	end
+	return (ladder :: { number })[ladderStep]
+end
+
+-- Lays everything below the stress site's top layer at once, paying no
+-- one, and leaves it out of the next delta: the snapshot each player is
+-- sent carries it.
+local function layStress()
+	local site = session.site
+	local onPlaced = site.onPlaced
+	site.onPlaced = nil
+	for _, s in StressSite.layOrder(bp) do
+		BuildSite.place(site, s, BuildSite.Cause.NONE, 0)
+	end
+	site.onPlaced = onPlaced
+	SiteSession.takeDelta(session)
+end
+
+-- Starts site number n of SiteList, unless StressTest asks for a stress
+-- site, which keeps n for when the stress test ends.
 local function start(n: number)
-	loadSite(n)
+	siteNumber = n
+	resetAt, holdUntil = nil, nil
+	stressCount = stressSize()
+	if stressCount then
+		loadStress(stressCount)
+	else
+		loadSite(n)
+	end
+	workspace:SetAttribute("StressStep", if ladder then ladderStep else nil)
+	workspace:SetAttribute("StressSteps", if ladder then #ladder else nil)
 	session = SiteSession.new(bp, nil, function()
 		return random:NextNumber()
 	end)
+	-- A stress site plays without the boss.
 	local difficulty = workspace:GetAttribute("Difficulty")
-	local tuning = if typeof(difficulty) == "string" then BossConfig[difficulty] else BossConfig.Normal
+	local tuning = if stressCount
+		then nil
+		elseif typeof(difficulty) == "string" then BossConfig[difficulty]
+		else BossConfig.Normal
 	if tuning then
 		SiteSession.setBoss(session, tuning)
 	end
@@ -385,6 +464,9 @@ local function start(n: number)
 		"CurrentDifficulty",
 		if tuning == nil then "None" elseif typeof(difficulty) == "string" then difficulty else "Normal"
 	)
+	if stressCount then
+		layStress()
+	end
 	for _, player in Players:GetPlayers() do
 		join(player)
 	end
@@ -392,6 +474,23 @@ local function start(n: number)
 end
 
 start(chosenSite())
+
+-- A ladder step's hold is over: the next step starts, or the ladder is
+-- done and its last site stays in play.
+local function nextStep()
+	local steps = ladder
+	if steps and ladderStep < #steps then
+		ladderStep += 1
+		start(siteNumber)
+		for _, player in Players:GetPlayers() do
+			sendSnapshot(player)
+		end
+	else
+		ladder = nil
+		workspace:SetAttribute("StressStep", nil)
+		workspace:SetAttribute("StressSteps", nil)
+	end
+end
 
 Players.PlayerAdded:Connect(join)
 Players.PlayerRemoving:Connect(function(player)
@@ -421,6 +520,14 @@ local function updatePosition(player: Player)
 end
 
 ReadyRemote.OnServerEvent:Connect(sendSnapshot)
+
+-- A client has drawn the ladder step in play, named by its id: the step's
+-- hold starts now. The first to say so starts it.
+StressRemote.OnServerEvent:Connect(function(_player, id)
+	if ladder and holdUntil == nil and id == workspace:GetAttribute("CurrentSite") then
+		holdUntil = os.clock() + StressSite.stepSeconds(workspace:GetAttribute("StressStepSeconds"))
+	end
+end)
 
 PlaceRemote.OnServerEvent:Connect(function(player, id, slot)
 	local list = answers[player]
@@ -552,7 +659,7 @@ RunService.Heartbeat:Connect(function(dt)
 		-- Each player's share of the site's payout, by blocks placed, and
 		-- what they did; the meta would bank it and feed tasks from it.
 		local shares = SiteSession.shares(session)
-		local payout = SiteList[siteNumber].payout or 0
+		local payout = if stressCount then 0 else SiteList[siteNumber].payout or 0
 		for _, player in Players:GetPlayers() do
 			local counts = SiteSession.counts(session, player.UserId)
 			EventRemote:FireClient(player, {
@@ -568,9 +675,14 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 	if resetAt and os.clock() >= resetAt then
 		resetAt = nil
-		start(siteNumber % #SiteList + 1)
+		-- A finished stress site plays again; otherwise the next site starts.
+		start(if stressCount then siteNumber else siteNumber % #SiteList + 1)
 		for _, player in Players:GetPlayers() do
 			sendSnapshot(player)
 		end
+	end
+	if holdUntil and os.clock() >= holdUntil then
+		holdUntil = nil
+		nextStep()
 	end
 end)
