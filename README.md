@@ -13,7 +13,7 @@ The proofs the formula's section 7 asks for, as far as this repo can take them b
 | Phase | Proof | State |
 |---|---|---|
 | 1 | 10,000+ random placements and undos with no invariant broken; codec round trip | done: `tests/BuildSite.spec.luau`, `tests/SiteCodec.spec.luau`, and [`docs/invariants.md`](docs/invariants.md) for all six invariants |
-| 2 | **Gate:** you play it and judge the click; the stress-test ceiling on Low at phone size | ready for you: [`docs/playtest.md`](docs/playtest.md) |
+| 2 | **Gate:** you play it and judge the click; the stress-test ceiling on Low at phone size | ready for you: [`docs/playtest.md`](docs/playtest.md), and `StressTest` = `Ladder` measures the ceiling in one Play |
 | 3 | Sim and a real bot run within 10% of 30 minutes; every pet rarity works | sim 29.6 min solo; the bot run is in the playtest list; pet rarities wait for the fork's PetService |
 | 4 | 20 seeded bot runs all finish, Hard differs from Normal, co-op ratios near 5.4, two real clients in Local Server | sim: every site at every difficulty finishes, Hard +8 to 17% against Normal's +1 to 9%, co-op 0.51, 0.34, 0.26; Local Server is in the playtest list |
 | 5 to 7 | The look, all content, launch | need the fork, Studio and your approval |

@@ -70,14 +70,19 @@ Set `Difficulty` to `Hard`, then `Nightmare`. `TestSpeed` up to 5 reaches the bo
 
 ## 7. The stress test (the gate's number)
 
-The stress-test mode is being added to the prototype. Once it lands, the README's "Play the prototype" section has the exact steps. The plan is:
+The README's "Stress test" section has the details. In short:
 
-1. Set graphics quality to Low, and open the Device emulator at a phone size.
-2. Set the workspace attribute `StressTest` to `Ladder`, then press Play.
-3. The site steps up through 5,000 to 65,535 blocks, showing the camera near and far at each step, and prints a table of frame rates.
-4. The ceiling is the largest step that holds your target frame rate.
+1. **Set graphics to Low.** Press Play, press Esc, open Settings, set Graphics Mode to Manual and drag Graphics Quality to its lowest bar, then press Stop.
+2. **Emulate a phone.** Turn on the Device emulator (the Device button on the Test tab) and pick a phone held sideways, such as an iPhone 14 at 844 by 390.
+3. **Start the ladder.** Select Workspace, add a string attribute `StressTest` with the value `Ladder`, press Play, and leave the mouse and keyboard alone for about 3 minutes. The site steps through 5,000 to 65,535 blocks. At each step the camera spends half the time near the site's edge and half in an overview, and a readout at the right shows the frame rate. F3 hides or shows it.
+4. **Read the table.** It prints to the Output window and shows on screen. Its first line names the viewport and quality: check that it says `QualityLevel1`.
+5. **Find the ceiling.** It's the last step where both rows, near and overview, hold a mean of 55 FPS or more and a 5% FPS of 30 or more. To narrow it down, set `StressTest` to a list such as `40000, 42500, 45000` and play again.
 
-Report the table. It sets each site's block budget (`FIRST_SITE_BLOCKS` and the sites' sizes).
+A PC is faster than a phone even at Low and phone size, so treat the result as an upper bound until a real phone confirms it.
+
+- [ ] The ladder runs to its end and the camera comes back to you.
+- [ ] The readout fits a phone screen.
+- [ ] Building the biggest site causes no long hitch, or note how long it is.
 
 ## What to send back
 
