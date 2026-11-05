@@ -26,6 +26,7 @@ require("./Timelapse.spec")
 require("./SiteList.spec")
 require("./Words.spec")
 require("./Prototype.spec")
+require("./Clients.spec")
 
 local failed = Test.summary()
 print(string.format("%.1f s", os.clock() - started))

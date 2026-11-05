@@ -43,6 +43,7 @@ Workspace attributes change it while it runs:
 - `TestSpeed`: 1 to 5, how many times faster than real time the site runs.
 - `PowerTool`: true gives everyone the Forge Hammer, as its game pass will. Swing it with F.
 - `Pets`: how many hearthlings each player brings (0 to 4), read when they join. They fly to the nearest work near their owner, lay it, and rest.
+- `SitePlaced` is set by the server each tick: how many blocks stand, for debugging.
 - `AbilityPets`: how many rarer hearthlings each player brings. Every 20 seconds, one lays everything workable around its owner, as Unharvester's Cinderfall pets do.
 - `Cooldown`, `Grasp`, `Batch`, `SetTime`, `ChainChance`, `ChainRadius`, `PerfectChance`, `CrewWidth`, `CrewCooldown`: each overrides that stat for everyone.
 
@@ -80,7 +81,7 @@ It's a sandbox, not the game. It has no meta, saves, eggs, mounts, parties or me
 
 The prototype's scripts aren't run in Studio here; `tests/Prototype.spec.luau` runs them under Lune instead. `tests/lib/PlaceBuilder` builds the place from `default.project.json` the way `rojo build` does. `tests/lib/FakeRoblox` runs the server Script and client LocalScript with real Lune instances, whose properties Lune checks against Roblox's API database. Stand-ins replace the players, the run loop, input, tweens, sounds, remotes, the camera and the clock.
 
-The tests boot the place, lay blocks by holding the mouse, buy a skill, let a Hard boss bind the site, ride a hoist pad, and play a site to the end through its timelapse and reset, all with no script errors. What they can't show is how it looks, feels or performs, or anything about physics, which only Studio shows.
+The tests boot the place, lay blocks by holding the mouse, buy a skill, let a Hard boss bind the site, ride a hoist pad, and play a site to the end through its timelapse and reset, all with no script errors. `tests/lib/FakeGroup` runs a server and two clients the way Studio's Local Server does, each with its own view, input and module cache. In `tests/Clients.spec.luau`, two players lay blocks against a Hard boss, sometimes racing for the same cells, and both clients end showing exactly what the server holds. What the tests can't show is how it looks, feels or performs, or anything about physics, which only Studio shows.
 
 ### What the sim measures
 

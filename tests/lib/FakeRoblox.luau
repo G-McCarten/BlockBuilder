@@ -73,6 +73,7 @@ function FakeRoblox.new(game)
 	world.signals = {}
 	world.modules = { server = {}, client = {} }
 	world.sounds = 0
+	world.created = {}
 	world.aimRay = roblox.Ray.new(roblox.Vector3.new(0, 50, 0), roblox.Vector3.new(0, -1, 0))
 	world.mouse = roblox.Vector2.new(400, 300)
 
@@ -227,8 +228,11 @@ function METHODS.FireServer(world, proxy, ...)
 	)
 end
 
-function METHODS.FireClient(world, proxy, _player, ...)
-	table.insert(world.queue, { remote = proxy, event = "OnClientEvent", args = table.pack(...) })
+function METHODS.FireClient(world, proxy, player, ...)
+	table.insert(
+		world.queue,
+		{ remote = proxy, event = "OnClientEvent", to = world:unwrap(player), args = table.pack(...) }
+	)
 end
 
 function METHODS.FireAllClients(world, proxy, ...)
@@ -354,7 +358,10 @@ function FakeRoblox:buildGlobals()
 		workspace = self.workspaceProxy,
 		Instance = {
 			new = function(className)
-				return world:wrap(roblox.Instance.new(className))
+				local made = roblox.Instance.new(className)
+				-- What each side made, since clients share one real place here.
+				table.insert(world.created, made)
+				return world:wrap(made)
 			end,
 		},
 		os = fakeOs,

@@ -406,6 +406,9 @@ RunService.Heartbeat:Connect(function(dt)
 		end
 	end
 
+	-- For debugging in Studio, and for tests: how many blocks stand.
+	workspace:SetAttribute("SitePlaced", session.site.placedCount)
+
 	local events = SiteSession.takeEvents(session)
 	if #events > 0 then
 		EventRemote:FireAllClients(events)
