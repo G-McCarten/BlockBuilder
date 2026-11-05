@@ -50,8 +50,26 @@ Workspace attributes change it while it runs:
 - `SitePlaced` is set by the server each tick: how many blocks stand, for debugging. `CurrentDifficulty` is set when a site starts: the difficulty in play.
 - `AbilityPets`: how many rarer hearthlings each player brings. Every 20 seconds, one lays everything workable around its owner, as Unharvester's Cinderfall pets do.
 - `Cooldown`, `Grasp`, `Batch`, `SetTime`, `ChainChance`, `ChainRadius`, `PerfectChance`, `CrewWidth`, `CrewCooldown`: each overrides that stat for everyone.
+- `StressTest`: plays a generated district for the stress test instead of a site, read when a site starts. A number of blocks (1,000 to 65,535) plays one district of that size. `Ladder` steps through 5,000, 10,000, 15,000, 20,000, 30,000, 40,000, 50,000 and 65,535 blocks. A list such as `40000, 45000, 50000` steps through those. Everything below the top layer is laid at once, and the boss is off.
+- `StressStepSeconds`: how long each ladder step holds, 20 if unset, counted from when the client has drawn it.
 
 It's a sandbox, not the game. It has no meta, saves, eggs, mounts, parties or menus, and its pets are stand-ins. Its tick is a built-in Studio sound. At the fork, the Unharvester-based `BuildRenderer`, `PlaceController` and `SiteService` replace `src/client` and `src/server`, calling the same shared modules.
+
+### Stress test
+
+The Phase 2 gate asks for the stress-test ceiling on Low at phone size: how many blocks the client can draw and still hold its frame rate. One Play measures it.
+
+1. Set graphics quality to Low. Press Play, press Esc, open Settings, set Graphics Mode to Manual and drag Graphics Quality to its lowest bar, then press Stop. Studio should keep it for the next Play, and the table's first line names the quality it ran at: check that it says `QualityLevel1`.
+2. Turn on the Device emulator (the Device button on the Test tab) and pick a phone held sideways, such as an iPhone 14 at 844 by 390. The table's first line names the viewport too.
+3. Select Workspace in the Explorer and add a string attribute `StressTest` with the value `Ladder`. Then press Play, and leave the mouse and keyboard alone.
+
+Each step builds a district of hollow buildings beside the spawn: storeys of floor and wall, windows and doors, flat and hipped roofs, towers, lamp posts and paved street. Once the client has drawn it, the camera spends half the step at the site's edge, where the most blocks are drawn one by one in near chunks, and half in an overview where every chunk is far. A readout at the right shows the frame rate, the mean and 95th-percentile frame time over the last 2 seconds, and how many near block parts, far boxes and collision boxes are drawn. Its last line shows the step and time left. F3 shows or hides it at any time, and it shows whenever `StressTest` is set. The eight steps take about three minutes. Then the table prints to the Output window and shows on screen, and the camera is given back.
+
+The table has a row for each step and view: the step's blocks, near parts, far boxes, collision boxes, mean FPS, 5% FPS (the frame rate the slowest 5% of frames fall below), and the 95th-percentile frame time in milliseconds. A view's frames count from 2 seconds after the camera arrives, so the switch between near and far drawing isn't timed.
+
+To read the ceiling, find the last step at which both rows hold the frame rate: mean FPS within a few frames of Roblox's 60 cap (55 or more), and 5% FPS of 30 or more, which is a p95 under 33 ms. That step's block count is the ceiling. The near row usually gives out first, since every near block is its own part. If every step holds, the ceiling is 65,535, the most a site can have. To narrow it down, set `StressTest` to a list of sizes between the last step that held and the first that didn't, such as `40000, 42500, 45000, 47500, 50000`. A PC running Studio is faster than a phone, even at Low and phone size, so treat the result as an upper bound until a real phone confirms it.
+
+A number instead, such as `StressTest` = `30000`, plays that one district with the readout and no tour, to look around it or lay its top layer.
 
 ## What's built
 
@@ -82,13 +100,14 @@ It's a sandbox, not the game. It has no meta, saves, eggs, mounts, parties or me
 | Stamp tool, from a script or a Studio model: multi-cell parts, inherited kinds, stages | `tools/stamp_blueprint.luau`, `tools/lib/ModelSource.luau`, `docs/authoring.md` | tested; not yet tried on a real Studio export |
 | Content drafts: hearthlings and eggs, sled beasts, achievements, tasks, lore, news, The Warm Welcome | `src/shared/content/` | structure tested, numbers placeholders |
 | SiteList and KindLooks: the sites in order with their payouts, and each block kind's look | `src/shared/SiteList.luau`, `src/shared/KindLooks.luau` | tested, payouts provisional |
+| StressSite: generated districts of 1,000 to 65,535 blocks for the stress test (4.5), the same on server and client | `src/shared/StressSite.luau` | tested; the ceiling is measured in Studio |
 | Blueprints: TestHut (508), WoodcuttersLodge (5,928), IceBridge (7,459), Watchtower (9,617), GreatHall (12,333) | `tools/blueprints/` | validated, sizes provisional |
 
 ### How the prototype is tested
 
 The prototype's scripts aren't run in Studio here; `tests/Prototype.spec.luau` runs them under Lune instead. `tests/lib/PlaceBuilder` builds the place from `default.project.json` the way `rojo build` does. `tests/lib/FakeRoblox` runs the server Script and client LocalScript with real Lune instances, whose properties Lune checks against Roblox's API database. Stand-ins replace the players, the run loop, input, tweens, sounds, remotes, the camera and the clock.
 
-The tests boot the place, lay blocks by holding the mouse, buy a skill, let a Hard boss bind the site, ride a hoist pad, and play a site to the end through its timelapse and reset, all with no script errors. `tests/lib/FakeGroup` runs a server and two clients the way Studio's Local Server does, each with its own view, input and module cache. In `tests/Clients.spec.luau`, two players lay blocks against a Hard boss, sometimes racing for the same cells, and both clients end showing exactly what the server holds. What the tests can't show is how it looks, feels or performs, or anything about physics, which only Studio shows.
+The tests boot the place, lay blocks by holding the mouse, buy a skill, let a Hard boss bind the site, ride a hoist pad, and play a site to the end through its timelapse and reset, all with no script errors. `tests/lib/FakeGroup` runs a server and two clients the way Studio's Local Server does, each with its own view, input and module cache. In `tests/Clients.spec.luau`, two players lay blocks against a Hard boss, sometimes racing for the same cells, and both clients end showing exactly what the server holds. `tests/StressTest.spec.luau` plays a stress district and runs short ladders through the camera tour to the table. What the tests can't show is how it looks, feels or performs, or anything about physics, which only Studio shows.
 
 [`docs/invariants.md`](docs/invariants.md) lists the tests behind each of section 4.2's six invariants. `tests/Invariants.spec.luau` covers the two that need the whole place: a block laid where a character stands moves them clear, a character wedged for 2 seconds is moved, and the server makes no Instance while blocks are laid.
 
