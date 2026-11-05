@@ -143,6 +143,16 @@ Test.case("one premium roll per player per step with a first placement", functio
 	end
 end)
 
+Test.case("teammates earn the party share of each first placement", function()
+	local session, _, floor = hutSession({ partyShare = 0.5 })
+	SiteSession.join(session, 2, baseStats())
+	session.workers[1].stats.yield = 4
+	Test.check((SiteSession.request(session, 1, floor)), "placed")
+	Test.equal(session.workers[1].purse, 4, "the placer earns the pay")
+	Test.equal(session.workers[2].purse, 2, "a teammate earns half the base pay")
+	Test.equal(session.tally[2], 0, "the tally stays with the placer")
+end)
+
 Test.case("shares follow blocks placed, and survive leaving", function()
 	local session, bp = hutSession()
 	SiteSession.join(session, 2, baseStats())
@@ -168,7 +178,12 @@ Test.case("the ability's band crosses the site placing blocks, then ends", funct
 	for _ = 1, 100 do
 		SiteSession.step(session, 0.1)
 	end
-	Test.check(session.site.placedCount > 100, `the band placed {session.site.placedCount}`)
+	-- bandRate blocks a second per cell of width, for the seconds it spends over the hut.
+	local stats = baseStats()
+	local seconds = (session.blueprint.sizeX + stats.crewWidth) / stats.crewSpeed
+	local most = SiteSession.DEFAULT_RULES.bandRate * stats.crewWidth * seconds
+	local placed = session.site.placedCount
+	Test.check(placed > most / 2 and placed <= most + 2, `the band placed {placed}, at most {most}`)
 	Test.equal(#session.bands, 0, "the band has ended")
 	Test.check(session.tally[1] == session.site.placedCount, "all credited to its owner")
 end)
@@ -216,6 +231,38 @@ Test.case("finishing the site is announced once", function()
 	end
 	Test.equal(finishes, 1, "announced once")
 	Test.equal(session.workers[1].purse, bp.count, "every block paid")
+end)
+
+Test.case("a site finished by laying an undone block again still finishes", function()
+	local bp = Sites.hut()
+	local session = SiteSession.new(bp, rules(), function()
+		return 0.5
+	end)
+	SiteSession.join(session, 1, baseStats())
+	local site = session.site
+	-- Two blocks nothing rests on.
+	local tops = {}
+	for s = 1, bp.count do
+		if bp.dependentStart[s + 1] == bp.dependentStart[s] then
+			table.insert(tops, s)
+		end
+	end
+	local a, b = tops[1], tops[2]
+	local rounds = 0
+	while site.placedCount < site.count - 1 do
+		rounds += 1
+		assert(rounds < 100, "stuck")
+		for s = 1, bp.count do
+			if s ~= a then
+				BuildSite.place(site, s, BuildSite.Cause.HAND, 1)
+			end
+		end
+	end
+	BuildSite.undo(site, b, math.huge, BuildSite.Cause.BOSS, 0)
+	BuildSite.place(site, a, BuildSite.Cause.HAND, 1)
+	Test.check(not session.finished, "one block short")
+	BuildSite.place(site, b, BuildSite.Cause.HAND, 1)
+	Test.check(session.finished, "finished by a block laid again")
 end)
 
 Test.case("deltas keep a client's mirror in step with the server", function()

@@ -160,29 +160,46 @@ Test.case("a sweep places everything it can in its band, at every height, and no
 	Test.equal(SiteActions.sweep(budgeted, index, 3, 0, bp.sizeZ, 3, 25, {}), 25, "stops at its budget")
 end)
 
-Test.case("the power tool clears its arc and starts the band beyond it", function()
+Test.case("the power tool places what was workable in its arc and starts the band beyond it", function()
 	local bp, index, site = twins(4, 2500)
 	local px, py, pz = 16.5, 3, 2.5
 	local fx, fz = 0, 1
 	local stats = { radius = 5, halfAngle = math.rad(50), band = 3, setRate = 0.25 }
-	local before = Sites.snapshot(site)
-	local placed = {}
-	local count, started = SiteActions.arc(site, index, px, py, pz, fx, fz, stats, 2, placed)
-	Test.check(count > 0, "placed something")
 	local cosHalf = math.cos(stats.halfAngle)
-	local bandStarted = 0
-	for s = 1, bp.count do
+	local function region(s: number): string
 		local d2 = centreDist2(bp, s, px, py, pz)
 		local dx, dz = bp.x[s] + 0.5 - px, bp.z[s] + 0.5 - pz
 		local flat = math.sqrt(dx * dx + dz * dz)
 		local ahead = flat < 1e-9 or (dx * fx + dz * fz) / flat >= cosHalf
 		if ahead and d2 <= stats.radius ^ 2 then
-			Test.check(not BuildSite.canPlace(site, s, Cause.TOOL), `slot {s} in the arc is still placeable`)
+			return "arc"
 		elseif ahead and d2 <= (stats.radius + stats.band) ^ 2 then
+			return "band"
+		end
+		return "out"
+	end
+	local workable = {}
+	for s = 1, bp.count do
+		workable[s] = BuildSite.canPlace(site, s, Cause.TOOL)
+	end
+	local before = Sites.snapshot(site)
+	local placed = {}
+	local count, started = SiteActions.arc(site, index, px, py, pz, fx, fz, stats, 2, placed)
+	Test.check(count > 0, "placed something")
+	for i = 1, count do
+		local s = placed[i]
+		Test.check(workable[s] and region(s) == "arc", `slot {s} placed but wasn't workable in the arc`)
+	end
+	local bandStarted = 0
+	for s = 1, bp.count do
+		local where = region(s)
+		if where == "arc" and workable[s] then
+			Test.check(BuildSite.isPlaced(site, s), `workable slot {s} in the arc wasn't placed`)
+		elseif where == "band" then
 			if site.rate[s] > 0 and before.rate[s] == 0 then
 				bandStarted += 1
 			end
-		else
+		elseif where == "out" then
 			Test.equal(site.progress[s], before.progress[s], `slot {s} outside the arc changed progress`)
 			Test.equal(site.rate[s], before.rate[s], `slot {s} outside the arc changed rate`)
 		end
@@ -208,16 +225,21 @@ Test.case("a pet goes for the nearest slot it can place, and works around it", f
 		Test.equal(target, best, "nearest within leash")
 		if target then
 			local placed = {}
+			local workable = {}
+			for s = 1, bp.count do
+				workable[s] = BuildSite.canPlace(site, s, Cause.PET)
+			end
 			local count, started = SiteActions.forage(site, index, target, 2, 4, 0.5, 9, placed)
 			Test.check(count >= 1 and placed[1] == target, "the target first")
 			local tx, ty, tz = bp.x[target] + 0.5, bp.y[target] + 0.5, bp.z[target] + 0.5
 			for s = 1, bp.count do
-				if centreDist2(bp, s, tx, ty, tz) <= 4 then
-					Test.check(
-						not BuildSite.canPlace(site, s, Cause.PET),
-						`slot {s} in the pet's reach is still placeable`
-					)
+				local inReach = centreDist2(bp, s, tx, ty, tz) <= 4
+				if inReach and workable[s] then
+					Test.check(BuildSite.isPlaced(site, s), `workable slot {s} in the pet's reach wasn't placed`)
 				end
+			end
+			for i = 1, count do
+				Test.check(workable[placed[i]], `slot {placed[i]} wasn't workable before the pet came`)
 			end
 			Test.check(started >= 0, "ring")
 			Sites.checkRules(site)

@@ -28,9 +28,11 @@
 
 	Pay. Every first placement pays the player credited with it yield *
 	yieldMult in run currency. Clicked blocks, the aimed one and the batch,
-	roll perfectChance to pay perfectReward times that. A block placed again
-	after an undo pays nothing. The tally counts first placements per player
-	and survives leaving, so the finished site's pay is split by blocks placed.
+	roll perfectChance to pay perfectReward times that. Every teammate also
+	earns partyShare of the base pay, so a party's trees grow with the site as
+	a solo player's does. A block placed again after an undo pays nothing. The
+	tally counts first placements per player and survives leaving, so the
+	finished site's pay is split by blocks placed.
 
 	Premium drops. Each step, each player who placed a block for the first
 	time in that step rolls premiumChance once.
@@ -105,8 +107,12 @@ export type Rules = {
 	perSecond: number,
 	-- Chance, per player per step with a first placement, of a premium drop.
 	premiumChance: number,
-	-- Most blocks one ABILITY band places in one step.
-	bandBudget: number,
+	-- Blocks a second an ABILITY band places, per cell of its width.
+	bandRate: number,
+	-- Share of a first placement's base pay every teammate also earns, so a
+	-- party climbs the skill tree about as fast per share built as a solo
+	-- player does.
+	partyShare: number,
 	chunkCells: number,
 }
 
@@ -145,6 +151,8 @@ export type Band = {
 	width: number,
 	speed: number,
 	endsAt: number,
+	-- Blocks the band may still place, earned at its rate, spent as it goes.
+	credit: number,
 }
 
 export type Pet = {
@@ -185,7 +193,8 @@ SiteSession.DEFAULT_RULES = table.freeze({
 	burst = 6,
 	perSecond = 12,
 	premiumChance = 0.002,
-	bandBudget = 60,
+	bandRate = 6,
+	partyShare = 1,
 	chunkCells = 8,
 })
 
@@ -217,6 +226,12 @@ function SiteSession.new(blueprint: any, rules: Rules?, random: (() -> number)?)
 	}
 
 	site.onPlaced = function(slot: number, firstTime: boolean)
+		-- Any placement can be the last one, a first or a block laid again.
+		if site.placedCount == site.count and not session.finished then
+			session.finished = true
+			session.finishedAt = session.clock
+			emit(session, { kind = "finished" })
+		end
 		if not firstTime then
 			return
 		end
@@ -225,7 +240,8 @@ function SiteSession.new(blueprint: any, rules: Rules?, random: (() -> number)?)
 		local worker = session.workers[userId]
 		if worker then
 			local stats = worker.stats
-			local pay = stats.yield * stats.yieldMult
+			local base = stats.yield * stats.yieldMult
+			local pay = base
 			local cause = site.cause[slot]
 			if (cause == Cause.HAND or cause == Cause.BATCH) and session.random() < stats.perfectChance then
 				pay *= stats.perfectReward
@@ -233,11 +249,14 @@ function SiteSession.new(blueprint: any, rules: Rules?, random: (() -> number)?)
 			end
 			worker.purse += pay
 			worker.firstThisStep = true
-		end
-		if site.placedCount == site.count and not session.finished then
-			session.finished = true
-			session.finishedAt = session.clock
-			emit(session, { kind = "finished" })
+			local share = session.rules.partyShare
+			if share > 0 then
+				for otherId, other in session.workers do
+					if otherId ~= userId then
+						other.purse += base * share
+					end
+				end
+			end
 		end
 	end
 	return session
@@ -364,6 +383,7 @@ function SiteSession.useAbility(session: Session, userId: number): boolean
 		width = stats.crewWidth,
 		speed = stats.crewSpeed,
 		endsAt = session.clock + stats.crewDuration,
+		credit = 0,
 	})
 	worker.abilityAt = session.clock + stats.crewCooldown
 	emit(session, { kind = "ability", userId = userId })
@@ -424,16 +444,22 @@ local function stepBands(session: Session, dt: number)
 		if session.clock >= band.endsAt or gone then
 			table.remove(session.bands, i)
 		else
-			SiteActions.sweep(
-				session.site,
-				session.index,
-				band.axis,
-				band.pos - half,
-				band.pos + half,
-				band.owner,
-				session.rules.bandBudget,
-				session.placed
-			)
+			-- Unspent credit carries over a step, not longer, so a band can't hoard.
+			local rate = session.rules.bandRate * band.width
+			band.credit = math.min(band.credit + rate * dt, rate * dt * 2)
+			local budget = math.floor(band.credit)
+			if budget > 0 then
+				band.credit -= SiteActions.sweep(
+					session.site,
+					session.index,
+					band.axis,
+					band.pos - half,
+					band.pos + half,
+					band.owner,
+					budget,
+					session.placed
+				)
+			end
 		end
 	end
 end

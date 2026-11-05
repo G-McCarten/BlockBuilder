@@ -18,9 +18,13 @@
 	  forage        what a pet does there: places the target and everything
 	                within reach, and starts a ring around it setting
 
-	Actions that sweep a region place lowest first, and go over the region
-	again while that places more, so a block placed can make the one above or
-	beside it READY in time for the same action to place it.
+	The arc and a pet's work take what is workable when they act, the ghost
+	layer in front of them, never what their own placing readies. A click's
+	batch is chosen just after the aimed block lands, so it can include the
+	block that one readied. A band is different again, because it dwells: it
+	places lowest first and keeps going while that readies more, up to the
+	budget it is given, which its caller sets from a rate in blocks per second
+	so the band is as strong at any tick rate.
 
 	Actions write the slots they place into an output list, so the caller can
 	tally them and play effects. Pay stays with BuildSite.onPlaced, which says
@@ -115,6 +119,27 @@ local function placeAll(
 	return count
 end
 
+-- Places the first n slots of list that cause may place, once through, in
+-- order, appending them to placed after count. Returns the new count.
+local function placeOnce(
+	site: Site,
+	list: { number },
+	n: number,
+	cause: number,
+	causer: number,
+	placed: { number },
+	count: number
+): number
+	for i = 1, n do
+		local s = list[i]
+		if BuildSite.place(site, s, cause, causer) then
+			count += 1
+			placed[count] = s
+		end
+	end
+	return count
+end
+
 function SiteActions.chain(site: Site, index: Index, slot: number, radius: number, rate: number, causer: number): number
 	local cx, cy, cz = centre(index, slot)
 	local n = SiteIndex.within(index, cx, cy, cz, radius, function(s)
@@ -160,7 +185,7 @@ function SiteActions.hand(
 			local dx, dy, dz = bp.x[s] + 0.5 - px, bp.y[s] + 0.5 - py, bp.z[s] + 0.5 - pz
 			return dx * dx + dy * dy + dz * dz <= grasp2
 		end, stats.batch - 1, found)
-		count = placeAll(site, found, n, Cause.BATCH, causer, placed, count, stats.batch)
+		count = placeOnce(site, found, n, Cause.BATCH, causer, placed, count)
 	end
 
 	local started = 0
@@ -240,10 +265,9 @@ function SiteActions.arc(
 
 	local radius = stats.radius
 	local n = SiteIndex.within(index, px, py, pz, radius, function(s)
-		return not BuildSite.isPlaced(site, s) and inArc(s, 0, radius)
+		return BuildSite.canPlace(site, s, Cause.TOOL) and inArc(s, 0, radius)
 	end, found)
-	lowestFirst(index, found, n)
-	local count = placeAll(site, found, n, Cause.TOOL, causer, placed, 0, math.huge)
+	local count = placeOnce(site, found, n, Cause.TOOL, causer, placed, 0)
 
 	local far = radius + stats.band
 	local m = SiteIndex.within(index, px, py, pz, far, function(s)
@@ -279,16 +303,17 @@ function SiteActions.forage(
 	causer: number,
 	placed: { number }
 ): (number, number)
-	if not BuildSite.place(site, target, Cause.PET, causer) then
+	if not BuildSite.canPlace(site, target, Cause.PET) then
 		return 0, 0
 	end
-	placed[1] = target
+	-- What is workable around the target before the pet lays anything.
 	local cx, cy, cz = centre(index, target)
 	local n = SiteIndex.within(index, cx, cy, cz, reach, function(s)
-		return not BuildSite.isPlaced(site, s)
+		return s ~= target and BuildSite.canPlace(site, s, Cause.PET)
 	end, found)
-	lowestFirst(index, found, n)
-	local count = placeAll(site, found, n, Cause.PET, causer, placed, 1, math.huge)
+	BuildSite.place(site, target, Cause.PET, causer)
+	placed[1] = target
+	local count = placeOnce(site, found, n, Cause.PET, causer, placed, 1)
 
 	local m = SiteIndex.within(index, cx, cy, cz, ring, function(s)
 		return BuildSite.state(site, s) == State.READY

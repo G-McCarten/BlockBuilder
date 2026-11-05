@@ -23,12 +23,29 @@ Nothing here touches Roblox instances, so all of it runs and is tested under Lun
 | Access: stand cells, free surface, working layer for hoists (4.4) | `src/shared/Access.luau` | done, tested |
 | SiteActions: click with batch and chain, `ABILITY` sweep, `POWER_TOOL` arc, pet forage (5.1, 5.2) | `src/shared/SiteActions.luau` | done, tested |
 | BossEffects: undo nearest, marker burst, collapse, peace and stubborn shields, relent (5.3) | `src/shared/BossEffects.luau` | done, tested |
+| SiteSession: one site's run on the server: click checks, pay, tally, drops, bands, tool, pets | `src/shared/SiteSession.luau` | done, tested |
+| BossBrain and BossConfig: the boss at Normal, Hard and Nightmare (5.3) | `src/shared/BossBrain.luau`, `src/shared/BossConfig.luau` | done, tested, tuning provisional |
+| Run sim with bots, and a placeholder economy | `tools/sim/` | done, tested |
 | Theme: player-facing words | `src/shared/Theme.luau` | slot pick A |
 | Stamp tool, from a script or a Studio model (`.rbxm`, `.rbxmx`) | `tools/stamp_blueprint.luau`, `tools/lib/ModelSource.luau` | done, tested |
 | Test blueprint, 508 blocks | `tools/blueprints/TestHut.luau` | done |
 | First site in graybox, 5,928 blocks | `tools/blueprints/WoodcuttersLodge.luau` | done, validated |
 
 Stamped blueprints go to `src/shared/Blueprints/`. The finished lodge merges into 312 collision boxes over 96 chunks of 8 cells.
+
+### What the sim measures
+
+`lune run tools/sim/run` plays whole runs with bots through `SiteSession`. Bots buy the cheapest skill they can afford, use the ability when it's ready, break markers and bindings, shoo the boss, and otherwise work the nearest slot. The economy in `tools/sim/Tuning.luau` is a placeholder, tuned so a solo first run of the lodge takes about 30 minutes. Measured on the WoodcuttersLodge:
+
+| Run | Result |
+|---|---|
+| Solo, no boss, 10 seeds | 29.8 min (28.8 to 30.4) |
+| Solo, Normal, 20 seeds | 31.2 min (27.9 to 32.9), all finished |
+| Solo, Hard, 20 seeds | 37.0 min (32.7 to 47.4), all finished |
+| Solo, Nightmare, 20 seeds | 39.9 min (36.0 to 45.4), all finished |
+| 2, 3, 4 players, Normal | 0.54, 0.36, 0.29 of the solo time (Unharvester: 0.51, 0.36, 0.27) |
+
+Co-op reaches those ratios through `partyShare`: every teammate also earns the base pay of each first placement, so a party climbs the tree as fast per share built as a solo player. Without it, 4 players took 0.51 of the solo time, because each player's tree only grew from their own blocks. PartyPressure isn't modelled.
 
 ### Reconcile at the fork
 
@@ -38,6 +55,9 @@ Stamped blueprints go to `src/shared/Blueprints/`. The finished lodge merges int
   - A chain starts READY slots within `chainRadius` of each block placed.
   - The arc is a 3D radius narrowed to an angle seen from above.
   - A pet's leash, reach and ring are radii around its target.
+- **Run economy.** `tools/sim/Tuning.luau` stands in for `UpgradeConfig`. Port the real tree's nodes and prices into that shape and rerun the sim.
+- **Ability strength.** A band places `bandRate` (6) blocks a second per cell of its width, rather than everything it covers, so it is as strong at any tick rate.
+- **Party share.** `SiteSession` pays every teammate the base pay of each first placement (`partyShare` 1). Check it against how Unharvester's purses work in a party.
 - **Collapse.** When a section collapses, only its lowest blocks animate. The ones above drop to LOCKED at once, because BuildSite resets anything resting on a block that stops counting as placed.
 - **`SiteCodec` and `FieldCodec`.** This is a new wire format, not `FieldCodec`'s. A delta entry is 8 bytes (u16 slot, u16 progress, f32 rate). A snapshot is a placed bitset plus an entry for each active slot.
 - **Base grasp.** `SiteConfig` assumes a base grasp of 5 cells (15 studs at 3 studs a block) and 2 cells of headroom. Replace the grasp with `UpgradeConfig`'s, then restamp and revalidate every blueprint.
