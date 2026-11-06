@@ -1,6 +1,38 @@
 # Building a site in Studio
 
-A site's blueprint can come from a script (`tools/blueprints/<Name>.luau`) or from a model you build in Studio and export (`tools/blueprints/<Name>.rbxm` or `.rbxmx`). This page covers the model route: building it, exporting it, stamping it and checking it. `tools/lib/ModelSource.luau` reads the model and `tools/stamp_blueprint.luau` turns it into `src/shared/Blueprints/<Name>.luau`.
+A site's blueprint can come from a script (`tools/blueprints/<Name>.luau`) or from a model you build in Studio and export (`tools/blueprints/<Name>.rbxm` or `.rbxmx`). This page covers the model route: building it, exporting it, stamping it and checking it. `tools/lib/ModelSource.luau` reads the model and `tools/stamp_blueprint.luau` turns it into `src/shared/Blueprints/<Name>.luau`. [Resize a scripted site](#resize-a-scripted-site) covers the four sites' scripts.
+
+## Resize a scripted site
+
+The four sites are scripts, and each starts with its size in blocks:
+
+```lua
+-- The site's size in blocks.
+local BLOCKS = 42000
+```
+
+To restamp a site at another size, such as the ceiling the stress test finds, change that number and stamp it again:
+
+```bash
+lune run tools/stamp_blueprint GreatHall
+```
+
+The script builds the site at a scale factor, and a bisection picks the factor whose count lands nearest `BLOCKS`, never over the 65,535 a site can hold. The stamp's line gives the count it reached, usually within 2% of `BLOCKS`. Each script's header says what scales:
+
+| Site | Default | What scales | What stays | Range that fits the baseplate |
+|---|---|---|---|---|
+| WoodcuttersLodge | 20,000 | every length of the camp | storey heights, windows, doors | up to about 30,000 (102 cells wide) |
+| IceBridge | 26,000 | the deck's height and width, the gates, the lantern arch | the spans, so it stays 99 cells long | about 12,700 to 65,535 |
+| Watchtower | 33,000 | the tower's width and height, the yard | treads, doors, windows, houses, gatehouse | about 9,000 to 63,500 |
+| GreatHall | 42,000 | every length and height, and the bays' count | the bays' width, windows, doors, porch, dormers | up to 65,535 (100 cells wide) |
+
+`SiteServer` puts a site's corner cell at (24, 24) studs, so on the place's 512-stud baseplate a site fits while it is at most about 100 cells along x, which leaves room for the hoist pad past its far corner, and 99 along z. Below a range's lower end a site stops shrinking: the bridge needs its deck 16 layers up for its middle arch, and the tower keeps a least width and height.
+
+After a resize:
+
+- Keep the sites in order. The SiteList test wants each site bigger than the one before it.
+- Run `lune run tools/check`: the stamp check fails until the stamped file matches the script.
+- Rerun the sim's tables in [`balance.md`](balance.md), which were measured on the old sizes.
 
 ## Set up Studio
 

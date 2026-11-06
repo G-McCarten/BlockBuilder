@@ -572,8 +572,9 @@ local function watchtower(scale: number)
 	return blocks
 end
 
--- The site at the scale whose count lands nearest target. The count grows
--- with the scale, so a bisection finds where it crosses the target.
+-- The site at the scale whose count lands nearest target, but never over the
+-- 65,535 blocks a slot index can name. The count grows with the scale, so a
+-- bisection finds where it crosses the target.
 local function fit(build: (number) -> { any }, target: number): { any }
 	local lo, hi = 0.5, 1.5
 	for _ = 1, 16 do
@@ -585,7 +586,7 @@ local function fit(build: (number) -> { any }, target: number): { any }
 		end
 	end
 	local below, above = build(lo), build(hi)
-	return if target - #below <= #above - target then below else above
+	return if #above > 65535 or target - #below <= #above - target then below else above
 end
 
 return {
