@@ -20,7 +20,7 @@ The proofs the formula's section 7 asks for, as far as this repo can take them b
 
 ## Play the prototype
 
-The prototype runs the four sites in a plain place, starting with the Woodcutter's Lodge (5,928 blocks), and moves to the next when one is finished. It's there to judge the click (the Phase 2 gate) and the shape of a run.
+The prototype runs the four sites in a plain place, starting with the Woodcutter's Lodge (20,008 blocks), and moves to the next when one is finished. It's there to judge the click (the Phase 2 gate) and the shape of a run.
 
 [`docs/playtest.md`](docs/playtest.md) is a checklist for a Studio session: everything the tests here can't settle, and what to report for the gate.
 
@@ -115,7 +115,7 @@ A number instead, such as `StressTest` = `30000`, plays that one district with t
 | Content drafts: hearthlings and eggs, sled beasts, achievements, tasks, lore, news, The Warm Welcome | `src/shared/content/` | structure tested, numbers placeholders |
 | SiteList and KindLooks: the sites in order with their payouts, and each block kind's look | `src/shared/SiteList.luau`, `src/shared/KindLooks.luau` | tested, payouts provisional |
 | StressSite: generated districts of 1,000 to 65,535 blocks for the stress test (4.5), the same on server and client | `src/shared/StressSite.luau` | tested; the ceiling is measured in Studio |
-| Blueprints: TestHut (508), WoodcuttersLodge (5,928), IceBridge (7,459), Watchtower (9,617), GreatHall (12,333) | `tools/blueprints/` | validated, sizes provisional |
+| Blueprints: TestHut (508), WoodcuttersLodge (20,008), IceBridge (26,130), Watchtower (33,108), GreatHall (41,750), each stamped at the size its `BLOCKS` sets | `tools/blueprints/`, `docs/authoring.md` | validated across each site's range of sizes, sizes provisional |
 
 ### How the prototype is tested
 
@@ -144,7 +144,7 @@ Armful adds a brick a click a level, to 4, and Many Hands doubles the batch a le
 
 `--clicks`, `--skills`, `--purse`, `--undo` and `--pay` print blocks per click, when each skill level is bought, run currency, the boss's undo rates and payout shares, by minute. `--site all --boss all` runs every site at every difficulty. [`docs/balance.md`](docs/balance.md) has every table, the command behind it, and how the boss was balanced. The sites' sizes are placeholders until the renderer's stress test sets each site's ceiling.
 
-The Ice Bridge crosses on five graded ice arches between twin-tower stone gates, with lanterns along its rope rails. The Watchtower stands in a walled yard; a stair winds round its outside, rising with the walls, up to a gallery, a glowing lantern room and a flared roof. The Great Hall has buttressed bays of tall windows, a gabled porch, dormers, a ridge louvre and a gable chimney. Roofs and rails wait for the work beneath them: beams, corners, a closed deck. Every step is a full block, so climbing them takes a jump.
+The Woodcutter's Lodge is a camp: a big lodge with a porch and a hipped thatch roof, a sawpit shed and woodpiles beside it, and behind it, across a paved yard with a well, a workshop and a log store. The Ice Bridge crosses on five graded pointed ice arches between twin-tower stone gates, with lanterns along its rope rails and a lantern arch over the middle; its stairs run down toward the front beside the gates, so it stays 99 cells long. The Watchtower stands in a walled yard with corner turrets, a gatehouse, a guardhouse and a storehouse; a stair winds round its outside more than a whole turn, rising with the walls, up to a gallery, a glowing lantern room and a flared roof. The Great Hall has buttressed bays of tall windows, a gabled porch, dormers, a ridge louvre and a gable chimney, with a belfry tower at its back west corner and a kitchen against its back wall. Roofs and rails wait for the work beneath them: beams, corners, a closed deck, a keystone. Every step is a full block, so climbing them takes a jump. Each site's script starts with `BLOCKS`, the size it stamps at ([`docs/authoring.md`](docs/authoring.md#resize-a-scripted-site)), so the stress test's ceiling can resize a site by one number.
 
 Co-op reaches those ratios through `partyShare`: every teammate also earns the base pay of each first placement, so a party climbs the tree as fast per share built as a solo player. Without it, 4 players took 0.51 of the solo time, because each player's tree only grew from their own blocks. PartyPressure isn't modelled.
 
@@ -194,9 +194,9 @@ Co-op reaches those ratios through `partyShare`: every teammate also earns the b
 | `DAILY_REWARD` | The Warm Welcome |
 | `ABILITY` | Sled Train |
 | `POWER_TOOL` | Forge Hammer |
-| `SITES` | Woodcutter's Lodge (timber, stone, thatch), Ice Bridge (ice, rope rail, stone, lantern), Watchtower (stone, timber, lantern), Great Hall (stone, timber, slate, glass) |
+| `SITES` | Woodcutter's Lodge, a camp (timber, stone, thatch), Ice Bridge (ice, rope rail, stone, lantern), Watchtower (stone, timber, lantern), Great Hall (stone, timber, slate, glass) |
 | `BLOCK_STUDS` | 3 |
-| `FIRST_SITE_BLOCKS` | 6,000 |
+| `FIRST_SITE_BLOCKS` | 20,000, up from the formula's 6,000 so a 30-minute run can end at dozens of blocks a click; provisional until the stress test |
 | `FIRST_RUN_MINUTES` | 30 |
 | `ACCESS` | default in 4.4 |
 

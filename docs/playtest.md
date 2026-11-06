@@ -56,7 +56,7 @@ Set `Difficulty` to `Hard`, then `Nightmare`. `TestSpeed` up to 5 reaches the bo
 
 ## 5. Bots and co-op (the Phase 3 and 4 proofs)
 
-- [ ] **A bot run lands near the sim's time.** Set `BotPlayers` to 1, `Difficulty` to `None` and `TestSpeed` to 5. Stand aside and time the lodge from the first block to the timelapse. At ×5, about 6 minutes of real time is 30 minutes of play. The sim says 29.6 minutes for a bot buying the cheapest skill first. Phase 3 asks for the two to agree within 10%.
+- [ ] **A bot run lands near the sim's time.** Set `BotPlayers` to 1, `Difficulty` to `None` and `TestSpeed` to 5. Stand aside and time the lodge from the first block to the timelapse. At ×5, about 6 minutes of real time is 30 minutes of play. The sim says 29.4 minutes for a bot buying the cheapest skill first, with 32 blocks a click from minute 25. Phase 3 asks for the two to agree within 10%.
 - [ ] **×5 can be trusted.** The formula asks you to compare one ×5 run against real time before trusting ×5. Play one site at `TestSpeed` 1 with a bot and check the times agree.
 - [ ] **Two real clients agree.** Start a Local Server with 2 players (Test, then Clients and Servers). Lay blocks in both windows, sometimes the same cell, against a `Hard` boss. Both windows should show the same build, and a block one player lays should land for the other within a moment.
 
