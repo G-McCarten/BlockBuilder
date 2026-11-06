@@ -15,7 +15,7 @@ The proofs the formula's section 7 asks for, as far as this repo can take them b
 | 1 | 10,000+ random placements and undos with no invariant broken; codec round trip | done: `tests/BuildSite.spec.luau`, `tests/SiteCodec.spec.luau`, and [`docs/invariants.md`](docs/invariants.md) for all six invariants |
 | 2 | **Gate:** you play it and judge the click; the stress-test ceiling on Low at phone size | ready for you: [`docs/playtest.md`](docs/playtest.md), and `StressTest` = `Ladder` measures the ceiling in one Play |
 | 3 | Sim and a real bot run within 10% of 30 minutes; every pet rarity works | sim 29.6 min solo; the bot run is in the playtest list; pet rarities wait for the fork's PetService |
-| 4 | 20 seeded bot runs all finish, Hard differs from Normal, co-op ratios near 5.4, two real clients in Local Server | sim: every site at every difficulty finishes, Hard +8 to 17% against Normal's +1 to 9%, co-op 0.51, 0.34, 0.26; Local Server is in the playtest list |
+| 4 | 20 seeded bot runs all finish, Hard differs from Normal, co-op ratios near 5.4, two real clients in Local Server | sim: every site at every difficulty finishes, Hard +8 to 23% against Normal's +2 to 12%, co-op 0.50, 0.34, 0.26; Local Server is in the playtest list |
 | 5 to 7 | The look, all content, launch | need the fork, Studio and your approval |
 
 ## Play the prototype
@@ -94,7 +94,7 @@ A number instead, such as `StressTest` = `30000`, plays that one district with t
 | BuildSite: slot states and rules (4.2), shields, binding cap | `src/shared/BuildSite.luau` | tested |
 | SiteCodec: snapshot and delta messages | `src/shared/SiteCodec.luau` | tested |
 | SiteConfig: cell size, chunk size, base grasp, headroom | `src/shared/SiteConfig.luau` | |
-| SiteIndex: chunks; nearest, fenced and region queries; band slices (4.3, 5.2) | `src/shared/SiteIndex.luau` | tested, and checked against plain versions in `tests/Equivalence.spec.luau` |
+| SiteIndex: chunks; nearest and region queries; band slices (4.3, 5.2) | `src/shared/SiteIndex.luau` | tested, and checked against plain versions in `tests/Equivalence.spec.luau` |
 | SiteRay: grid raycast for aiming (4.3) | `src/shared/SiteRay.luau` | tested |
 | Prediction: clicks shown at once, rolled back if refused (4.3) | `src/shared/Prediction.luau` | tested over a laggy network |
 | CollisionBoxes: greedy-merged boxes per chunk (4.5) | `src/shared/CollisionBoxes.luau` | tested |
@@ -131,16 +131,18 @@ The tests boot the place, lay blocks by holding the mouse, buy a skill, let a Ha
 
 | Site | No boss | Normal | Hard | Nightmare |
 |---|---|---|---|---|
-| WoodcuttersLodge | 29.6 | 32.1 (+9%) | 34.6 (+17%) | 38.8 (+31%) |
-| IceBridge | 32.5 | 34.8 (+7%) | 37.4 (+15%) | 50.0 (+54%) |
-| Watchtower | 37.6 | 40.2 (+7%) | 44.1 (+17%) | 48.4 (+29%) |
-| GreatHall | 43.2 | 43.5 (+1%) | 46.6 (+8%) | 52.8 (+22%) |
+| WoodcuttersLodge | 29.2 | 32.7 (+12%) | 35.2 (+21%) | 38.8 (+33%) |
+| IceBridge | 32.2 | 34.3 (+6%) | 37.1 (+15%) | 45.6 (+41%) |
+| Watchtower | 37.0 | 40.1 (+8%) | 45.4 (+23%) | 51.5 (+39%) |
+| GreatHall | 41.2 | 42.2 (+2%) | 44.6 (+8%) | 50.0 (+21%) |
 
 | Run | Result |
 |---|---|
-| 2, 3, 4 players, Normal, lodge | 0.51, 0.34, 0.26 of the solo time (Unharvester: 0.51, 0.36, 0.27); each player's payout a minute is 0.95 to 0.99 of the solo rate |
-| Bots buying by value, lodge, no boss | 20.4 min, a third faster than cheapest first |
-| Blocks a click lays itself, lodge | at most 3.2 (cheapest first) or 4.0 (by value), far from the formula's "dozens" |
+| 2, 3, 4 players, Normal, lodge | 0.50, 0.34, 0.26 of the solo time (Unharvester: 0.51, 0.36, 0.27); each player's payout a minute is 0.97 to 1.00 of the solo rate |
+| Bots buying by value, lodge, no boss | 19.5 min, a third faster than cheapest first |
+| Blocks a click lays itself, lodge | at most 4.0 (cheapest first) or 5.0 (by value), far from the formula's "dozens" |
+
+A click's batch is the slots nearest the aimed one, out to the player's grasp plus a cell for each block of the batch. Dozens a click don't fit a 30-minute run on a site of about 6,000 blocks: at 70 clicks a minute, a 20-block click would lay the lodge in 4 minutes. [`docs/balance.md`](docs/balance.md) has the numbers and a stacked tree that was tried. Dozens need bigger sites, which the stress test will show whether the client can draw.
 
 `--clicks`, `--skills`, `--purse`, `--undo` and `--pay` print blocks per click, when each skill level is bought, run currency, the boss's undo rates and payout shares, by minute. `--site all --boss all` runs every site at every difficulty. [`docs/balance.md`](docs/balance.md) has every table, the command behind it, and how the boss was balanced. The sites' sizes are placeholders until the renderer's stress test sets each site's ceiling.
 
@@ -152,7 +154,7 @@ Co-op reaches those ratios through `partyShare`: every teammate also earns the b
 
 - **`BuildSite` and `CropField`.** Field names follow section 4.2. `shield` holds flags, `HAND_ONLY` and `BLOCKED`, inferred from the boss table in 5.3; they combine, so the peace circle can lift without clearing a stubborn band. `bound` caps how many blocks can stand until the boss's bindings break. Check both against `CropField`.
 - **Strike paths.** `SiteActions` reads the stat table in 5.1 one way, to be checked against `FieldService`:
-  - Batch takes the READY or SETTING slots nearest the aimed one, among those within the player's grasp. It counts as `BATCH`, not `HAND`, so it skips stubborn slots.
+  - Batch takes the READY or SETTING slots nearest the aimed one, out to the player's grasp plus a cell for each block of the batch, wherever the player stands. Only the aimed slot is checked against grasp plus slack. It counts as `BATCH`, not `HAND`, so it skips stubborn slots. Check how far `FieldService`'s stalks reach.
   - A chain starts READY slots within `chainRadius` of each block placed.
   - The power tool and pets place what is workable when they act, never what their own placing readies.
   - A band places `bandRate` (6) blocks a second per cell of its width, so it is as strong at any tick rate.

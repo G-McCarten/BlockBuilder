@@ -12,10 +12,10 @@ Minutes to finish, mean (fastest to slowest) over 20 runs each, and how much lon
 
 | site | no boss | Normal | Hard | Nightmare |
 |---|---|---|---|---|
-| WoodcuttersLodge | 29.6 (28.4 to 30.4) | 32.1 (29.6 to 34.4), +9% | 34.6 (31.7 to 38.6), +17% | 38.8 (34.3 to 43.9), +31% |
-| IceBridge | 32.5 (31.6 to 33.1) | 34.8 (33.3 to 35.9), +7% | 37.4 (34.8 to 41.1), +15% | 50.0 (45.2 to 66.1), +54% |
-| Watchtower | 37.6 (35.9 to 39.7) | 40.2 (37.5 to 42.7), +7% | 44.1 (39.3 to 59.6), +17% | 48.4 (44.1 to 55.4), +29% |
-| GreatHall | 43.2 (39.7 to 45.0) | 43.5 (39.2 to 45.8), +1% | 46.6 (42.4 to 55.3), +8% | 52.8 (46.5 to 62.1), +22% |
+| WoodcuttersLodge | 29.2 (28.8 to 30.1) | 32.7 (31.3 to 35.3), +12% | 35.2 (32.5 to 41.4), +21% | 38.8 (36.3 to 42.2), +33% |
+| IceBridge | 32.2 (31.7 to 32.7) | 34.3 (33.1 to 36.6), +6% | 37.1 (35.2 to 42.7), +15% | 45.6 (40.7 to 51.6), +41% |
+| Watchtower | 37.0 (35.4 to 38.6) | 40.1 (38.6 to 41.9), +8% | 45.4 (41.0 to 56.6), +23% | 51.5 (43.6 to 73.7), +39% |
+| GreatHall | 41.2 (39.9 to 43.2) | 42.2 (40.6 to 43.4), +2% | 44.6 (40.6 to 47.3), +8% | 50.0 (45.6 to 57.3), +21% |
 
 ```bash
 lune run tools/sim/run -- --site all --boss all --seeds 20
@@ -29,7 +29,7 @@ lune run tools/sim/run -- --site WoodcuttersLodge --boss all --seeds 20
 
 Before this tuning, the same 20 seeds gave Normal no longer than no boss on the Watchtower (37.4 both), Nightmare barely above Hard on the GreatHall (49.9 against 49.2 over 10 seeds), and Watchtower runs from 36 to 80 minutes on Hard and Nightmare. With a peace circle at every stop, the redesigned Ice Bridge took 53.6 minutes on Hard (+65%) and 68.2 on Nightmare (+110%), one run 117.6.
 
-Normal costs the Great Hall almost nothing (+1%). Its blocks are spread over a big footprint, so the boss's mending lands where a click's batch soon lays the gaps again.
+Normal costs the Great Hall almost nothing (+2%). Its blocks are spread over a big footprint, so the boss's mending lands where a click's batch soon lays the gaps again.
 
 ## Bots that buy by value
 
@@ -37,16 +37,16 @@ Normal costs the Great Hall almost nothing (+1%). Its blocks are spread over a b
 
 | site | no boss | Normal | Hard | Nightmare |
 |---|---|---|---|---|
-| WoodcuttersLodge | 20.4 (20.2 to 20.6) | 21.2 (20.2 to 22.8), +4% | 23.4 (21.9 to 25.4), +14% | 26.7 (23.5 to 32.8), +31% |
-| IceBridge | 24.3 (23.7 to 24.9) | 26.3 (25.3 to 28.3), +9% | 28.7 (26.2 to 34.9), +18% | 35.4 (31.9 to 43.9), +46% |
-| Watchtower | 27.7 (26.4 to 28.5) | 29.7 (28.0 to 32.8), +7% | 34.0 (31.0 to 43.0), +23% | 38.7 (32.5 to 47.4), +40% |
-| GreatHall | 32.5 (31.5 to 33.3) | 33.3 (30.5 to 35.8), +3% | 36.7 (32.8 to 40.2), +13% | 41.1 (36.2 to 58.0), +26% |
+| WoodcuttersLodge | 19.5 (19.3 to 19.6) | 20.3 (19.2 to 21.3), +4% | 22.3 (20.0 to 29.6), +14% | 24.4 (22.9 to 31.3), +25% |
+| IceBridge | 22.4 (22.3 to 22.8) | 24.2 (23.0 to 25.2), +8% | 26.0 (24.1 to 29.8), +16% | 31.6 (29.5 to 35.0), +41% |
+| Watchtower | 26.7 (26.3 to 27.3) | 28.1 (26.9 to 30.3), +5% | 32.1 (27.5 to 39.5), +20% | 35.8 (30.4 to 48.0), +34% |
+| GreatHall | 29.7 (28.7 to 30.6) | 31.1 (29.4 to 32.6), +4% | 33.2 (29.6 to 36.8), +12% | 37.1 (33.4 to 45.9), +25% |
 
 ```bash
 lune run tools/sim/run -- --site all --boss all --seeds 20 --buy value
 ```
 
-Buying by value finishes every site 25 to 31% sooner with no boss: the lodge in 20.4 minutes, not 29.6. The skill tree in `SkillTuning` is tuned so cheapest-first bots take about 30 minutes, and a player who buys sensibly beats that by a third. Cheapest first buys the setTime node first, which only hurries a chain's blocks, and the ability last. Retune the tree against value-buying bots, or against both, when it comes from the fork. The order of the difficulties holds either way.
+Buying by value finishes every site 28 to 33% sooner with no boss: the lodge in 19.5 minutes, not 29.2. The skill tree in `SkillTuning` is tuned so cheapest-first bots take about 30 minutes, and a player who buys sensibly beats that by a third. Cheapest first buys the setTime node first, which only hurries a chain's blocks, and the ability last. Retune the tree against value-buying bots, or against both, when it comes from the fork. The order of the difficulties holds either way.
 
 ## Co-op
 
@@ -54,12 +54,12 @@ The lodge on Normal, by party size, with what each player's share of the site's 
 
 | players | time | of the solo time | payout a minute, each (lowest to highest) | of the solo rate |
 |---|---|---|---|---|
-| 1 | 32.1 min | 1.00 | 3.11 | 1.00 |
-| 2 | 16.3 min | 0.51 | 3.07 (2.74 to 3.32) | 0.99 |
-| 3 | 11.1 min | 0.34 | 3.02 (2.50 to 3.46) | 0.97 |
-| 4 | 8.5 min | 0.26 | 2.96 (2.58 to 3.70) | 0.95 |
+| 1 | 32.7 min | 1.00 | 3.06 | 1.00 |
+| 2 | 16.4 min | 0.50 | 3.05 (2.83 to 3.30) | 1.00 |
+| 3 | 11.1 min | 0.34 | 2.99 (2.74 to 3.23) | 0.98 |
+| 4 | 8.5 min | 0.26 | 2.96 (2.63 to 3.58) | 0.97 |
 
-Unharvester's targets are 0.51, 0.36 and 0.27 of the solo time, with each player earning about the solo rate. With no boss the ratios are 0.54, 0.37 and 0.28, and each player earns 0.93, 0.89 and 0.89 of the solo rate.
+Unharvester's targets are 0.51, 0.36 and 0.27 of the solo time, with each player earning about the solo rate. With no boss the ratios are 0.54, 0.38 and 0.28, and each player earns 0.93, 0.89 and 0.88 of the solo rate.
 
 ```bash
 lune run tools/sim/run -- --coop --pay --boss Normal --seeds 20
@@ -77,13 +77,13 @@ What a click placed itself (the aimed block and its batch) by minute on the lodg
 |---|---|---|---|---|---|
 | 1 | 20 | 1% | 1.0 | 1.0 | 1.0 |
 | 5 | 20 | 6% | 1.0 | 1.0 | 1.0 |
-| 10 | 20 | 18% | 2.0 | 2.0 | 2.0 |
-| 15 | 20 | 34% | 3.0 | 2.7 | 2.9 |
-| 20 | 20 | 57% | 2.6 | 2.7 | 2.7 |
-| 25 | 20 | 79% | 2.9 | 2.8 | 2.9 |
-| 30 | 16 | 100% | 2.6 | 2.8 | 2.9 |
+| 10 | 20 | 16% | 2.0 | 2.0 | 2.0 |
+| 15 | 20 | 30% | 3.0 | 2.9 | 3.0 |
+| 20 | 20 | 52% | 3.0 | 2.8 | 3.0 |
+| 25 | 20 | 78% | 3.9 | 3.5 | 3.7 |
+| 30 | 13 | 100% | 3.6 | 3.5 | 3.7 |
 
-The median click tops out at 3.2 blocks, at minute 27. Bots buying by value reach 4.0 at minute 8, then fall back to 2 to 3 as their ability's band takes the easy work.
+The median click tops out at 4.0 blocks, at minute 28. Bots buying by value reach 5.0 at minute 15, then fall back as their ability's band takes the easy work.
 
 ```bash
 lune run tools/sim/run -- --seeds 20 --clicks
@@ -93,12 +93,15 @@ lune run tools/sim/run -- --seeds 20 --clicks
 lune run tools/sim/run -- --seeds 20 --clicks --buy value
 ```
 
-The formula wants skills to stack "until one click does the work of dozens". This tree gets nowhere near that:
+A click's batch takes the READY or SETTING slots nearest the aimed one, out to the player's grasp plus a cell for each block of the batch, wherever the player stands. Before, it only took slots within the player's own grasp of 5 cells, where there were seldom more than 3 or 4, so the batch rarely filled. With the wider reach, the same tree laid the lodge in 26.4 minutes, so every price was raised by a fifth to keep the run near 30.
 
-- The batch rarely fills. At batch level 4 a click may place 5 blocks, but within a grasp of 5 cells there are seldom 4 more READY slots.
-- Chains add almost nothing, 0.1 to 0.2 blocks a click. When one starts, only 1% to 3% of the cells in its radius are READY, because the click's batch has just taken the nearest.
+The formula wants skills to stack "until one click does the work of dozens". This tree gets to 4. Dozens a click and a 30-minute run pull against each other on a site of about 6,000 blocks:
 
-Reaching dozens needs reach to grow with the tree (grasp is base-only today), or chains that pick up SETTING and LOCKED neighbours. That's a change to `SkillTuning` and `SiteActions`.
+- Each block pays once, and a bot clicks about 70 times a minute, so a click of 20 blocks lays 1,400 blocks a minute. At that rate the lodge's 5,928 blocks last about 4 minutes. A 30-minute run averages about 3 blocks a click.
+- A stacked tree was tried on top of the wider reach. Armful had one level, then a Many Hands node multiplied the batch by four a level: two levels, at 515 and 536, so the batch went 2, 8, 32. Cheapest-first bots then laid 1 block a click until minute 11, 2 until minute 26, and 23 at minute 28, in a 28.4-minute run. But bots buying by value took Many Hands first, laid 32 a click from minute 10, and finished in 11.2 minutes. It works only with Many Hands priced between 506 and 544, so it isn't the tuning here.
+- Unharvester reaches dozens because its fields are big: the Long Field has 51,984 plants. So dozens a click needs sites several times the first site's 6,000 blocks, or it can only fill a run's last minutes. Decide once the stress test sets how many blocks a site can hold.
+
+Chains still add little, 0.1 to 0.2 blocks a click. A chain only starts what the batch's own blocks just readied, which the next click takes anyway.
 
 ## When skills are bought
 
@@ -108,21 +111,21 @@ Cheapest first:
 
 | skill | level 1 | level 2 | level 3 | level 4 | level 5 |
 |---|---|---|---|---|---|
-| batch | 5.7 | 11.1 | 17.3 | 25.9 | not bought |
-| chain | 6.9 | 13.7 | 20.3 | 28.0 | not bought |
-| setTime | 1.8 | 8.2 | 12.4 | 18.7 | |
-| perfect | 3.8 | 9.6 | 16.0 | 22.1 | |
-| crew | 15.1 | 24.0 | not bought | not bought | |
+| batch | 6.9 | 13.4 | 20.4 | 28.9 | not bought |
+| chain | 8.4 | 16.3 | 23.5 | not bought | not bought |
+| setTime | 2.1 | 10.0 | 14.8 | 21.8 | |
+| perfect | 4.5 | 11.7 | 18.9 | 25.3 | |
+| crew | 17.8 | 26.9 | not bought | not bought | |
 
 By value:
 
 | skill | level 1 | level 2 | level 3 | level 4 | level 5 |
 |---|---|---|---|---|---|
-| batch | 2.2 | 3.9 | 6.8 | 10.3 | 16.8 |
+| batch | 2.6 | 4.6 | 8.0 | 12.5 | 18.6 |
 | chain | not bought | not bought | not bought | not bought | not bought |
 | setTime | not bought | not bought | not bought | not bought | |
-| perfect | 7.2 | 10.9 | 14.6 | not bought | |
-| crew | 5.5 | 8.9 | 13.5 | not bought | |
+| perfect | 8.4 | 13.2 | 16.0 | not bought | |
+| crew | 6.5 | 10.5 | 15.3 | not bought | |
 
 ```bash
 lune run tools/sim/run -- --seeds 20 --skills
@@ -134,17 +137,17 @@ lune run tools/sim/run -- --seeds 20 --skills --buy value
 
 ## Run currency
 
-Held and earned in all by minute on the lodge with no boss, cheapest first. A bot spends nearly all it earns as it goes. A run earns about 6,800, and the whole tree costs about 11,200.
+Held and earned in all by minute on the lodge with no boss, cheapest first. A bot spends nearly all it earns as it goes. A run earns about 6,800, and the whole tree costs about 13,600.
 
 | minute | held | earned |
 |---|---|---|
 | 1 | 74 | 74 |
-| 5 | 99 | 379 |
-| 10 | 66 | 1,116 |
-| 15 | 170 | 2,233 |
-| 20 | 342 | 3,800 |
-| 25 | 374 | 5,293 |
-| 30 | 444 | 6,823 |
+| 5 | 38 | 374 |
+| 10 | 87 | 995 |
+| 15 | 92 | 1,958 |
+| 20 | 343 | 3,415 |
+| 25 | 426 | 5,192 |
+| 30 | 86 | 6,808 |
 
 ```bash
 lune run tools/sim/run -- --seeds 20 --purse
@@ -156,30 +159,30 @@ Placed blocks the boss and its works undid per run, and per minute over the minu
 
 | site | difficulty | undone per run | a minute while up | nearest | markers | collapses |
 |---|---|---|---|---|---|---|
-| WoodcuttersLodge | Normal | 1,022 | 51 | 996 | 26 | 0 |
-| WoodcuttersLodge | Hard | 1,346 | 61 | 1,309 | 37 | 0 |
-| WoodcuttersLodge | Nightmare | 2,584 | 97 | 2,394 | 34 | 156 |
-| IceBridge | Normal | 607 | 29 | 432 | 175 | 0 |
-| IceBridge | Hard | 911 | 39 | 714 | 196 | 0 |
-| IceBridge | Nightmare | 3,044 | 85 | 2,623 | 273 | 148 |
-| Watchtower | Normal | 1,671 | 71 | 1,547 | 124 | 0 |
-| Watchtower | Hard | 2,158 | 81 | 1,978 | 180 | 0 |
-| Watchtower | Nightmare | 3,387 | 107 | 2,976 | 228 | 182 |
-| GreatHall | Normal | 793 | 33 | 602 | 191 | 0 |
-| GreatHall | Hard | 1,011 | 38 | 823 | 189 | 0 |
-| GreatHall | Nightmare | 2,461 | 73 | 2,034 | 261 | 166 |
+| WoodcuttersLodge | Normal | 1,039 | 52 | 1,002 | 36 | 0 |
+| WoodcuttersLodge | Hard | 1,355 | 61 | 1,318 | 36 | 0 |
+| WoodcuttersLodge | Nightmare | 2,455 | 93 | 2,250 | 39 | 167 |
+| IceBridge | Normal | 564 | 29 | 389 | 175 | 0 |
+| IceBridge | Hard | 815 | 37 | 645 | 170 | 0 |
+| IceBridge | Nightmare | 2,762 | 89 | 2,398 | 234 | 130 |
+| Watchtower | Normal | 1,519 | 68 | 1,409 | 109 | 0 |
+| Watchtower | Hard | 2,028 | 77 | 1,883 | 145 | 0 |
+| Watchtower | Nightmare | 3,361 | 104 | 3,036 | 172 | 153 |
+| GreatHall | Normal | 547 | 25 | 379 | 168 | 0 |
+| GreatHall | Hard | 879 | 37 | 697 | 183 | 0 |
+| GreatHall | Nightmare | 2,109 | 74 | 1,718 | 213 | 178 |
 
 By minute on the lodge, as blocks undone a minute:
 
 | minute | Normal | Hard | Nightmare |
 |---|---|---|---|
 | 10 | 0 | 0 | 0 |
-| 15 | 45 | 63 | 70 |
-| 20 | 57 | 38 | 121 |
-| 25 | 58 | 52 | 88 |
-| 30 | 56 | 78 | 119 |
-| 35 | | 20 | 108 |
-| 40 | | | 46 |
+| 15 | 43 | 49 | 76 |
+| 20 | 58 | 65 | 95 |
+| 25 | 61 | 50 | 90 |
+| 30 | 48 | 57 | 123 |
+| 35 | 0 | 15 | 101 |
+| 40 | | 0 | 37 |
 
 ```bash
 lune run tools/sim/run -- --site all --boss all --seeds 20 --undo
@@ -192,7 +195,7 @@ The rule from the formula holds: difficulty gives players things to go and do, a
 - **Undoing next to the work costs little.** A click's batch usually has room for a gap or two, so blocks the boss undoes beside a player are laid again almost free. On a compact site, the Watchtower above all, the boss only costs time once it undoes faster than that. So Normal mends 4 blocks at a time within 5 cells, and Hard 6.
 - **Trips cost long sites and help compact ones.** On the IceBridge a bot clicks steadily, 73 to 75 times a minute, so every walk to a marker or to shoo the boss is time lost. On the Watchtower a greedy bot works less well with no boss, and the walks land it by fresh work: a boss that undid nothing at all made the Watchtower a minute faster. Markers now come every 90 seconds, not 45.
 - **The stubborn band was a lottery.** It runs across the site at every height, so where it lay along a wall it took up to 18% of the Watchtower's slots, and everything resting on them waited for single clicks. That one feature was nearly all of Hard's cost and all of its spread. It now comes at 60% built and is 2 cells wide.
-- **A peace circle comes at most once a minute.** The boss works the exposed spot farthest from the players, so on the long Ice Bridge a circle stood about 50 cells from the bot, against 20 on the lodge. With a circle at every stop, the bot spent a third of a Hard run walking to them: 122 circles in a 63-minute run, about 10 seconds each. On the lodge the same walks cross fresh work, so they cost almost nothing. With `peace.every` at 60 seconds, a stop sooner than that raises no circle, and Hard costs 8 to 17% on every site. Keeping the boss's spots near the players instead didn't help: it came back sooner, and its circles fell on the players' own work. Neither did keeping Nightmare's minions near the boss.
+- **A peace circle comes at most once a minute.** The boss works the exposed spot farthest from the players, so on the long Ice Bridge a circle stood about 50 cells from the bot, against 20 on the lodge. With a circle at every stop, the bot spent a third of a Hard run walking to them: 122 circles in a 63-minute run, about 10 seconds each. On the lodge the same walks cross fresh work, so they cost almost nothing. With `peace.every` at 60 seconds, a stop sooner than that raises no circle. Hard then cost 8 to 17% on every site, and 8 to 23% with the wider batch. Keeping the boss's spots near the players instead didn't help: it came back sooner, and its circles fell on the players' own work. Neither did keeping Nightmare's minions near the boss.
 - **Minions keep a reach of 3.** At 4, on the 508-block TestHut, the boss and its minions undid about as fast as a fresh player lays, and a solo Nightmare run stalled for over an hour. A block laid again pays nothing, so the player never earned the skills to get out. Nightmare's extra bite comes from a fourth minion and a final stand of 6 shoos instead.
 
 The tuning in `src/shared/BossConfig.luau`:
@@ -212,7 +215,7 @@ The tuning in `src/shared/BossConfig.luau`:
 
 ## What the sim can't say
 
-- The Ice Bridge on Nightmare is the costliest run, +54%. Its minions cost the most there: without them it takes 40.2 minutes, not 49.4, over 10 seeds.
+- Nightmare costs the most on the Ice Bridge and the Watchtower, +41% and +39%, and one Watchtower run took 73.7 minutes. On the Ice Bridge its minions cost the most: before the wider batch, it took 40.2 minutes without them and 49.4 with them, over 10 seeds.
 - It measures bots, not players. The bots aim perfectly, shoo the boss when it works within 20 cells, break every marker within 30 and never dodge a strike. Strikes cost them almost nothing.
 - It plays one tick rate (0.1 s) and no latency.
 - `PartyPressure` isn't modelled, so co-op has no extra pressure from the boss.
