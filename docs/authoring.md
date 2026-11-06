@@ -24,7 +24,7 @@ The script builds the site at a scale factor, and a bisection picks the factor w
 | WoodcuttersLodge | 20,000 | every length of the camp | storey heights, windows, doors | up to about 30,000 (102 cells wide) |
 | IceBridge | 26,000 | the deck's height and width, the gates, the lantern arch | the spans, so it stays 99 cells long | about 12,700 to 65,535 |
 | Watchtower | 33,000 | the tower's width and height, the yard | treads, doors, windows, houses, gatehouse | about 9,000 to 63,500 |
-| GreatHall | 42,000 | every length and height, and the bays' count | the bays' width, windows, doors, porch, dormers | up to 65,535 (100 cells wide) |
+| GreatHall | 42,000 | every length and height, and the bays' count | the bays' width, windows, doors, porch, dormers | up to about 58,000 (100 cells wide) |
 
 `SiteServer` puts a site's corner cell at (24, 24) studs, so on the place's 512-stud baseplate a site fits while it is at most about 100 cells along x, which leaves room for the hoist pad past its far corner, and 99 along z. Below a range's lower end a site stops shrinking: the bridge needs its deck 16 layers up for its middle arch, and the tower keeps a least width and height.
 

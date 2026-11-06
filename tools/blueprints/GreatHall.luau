@@ -2,7 +2,7 @@
 	GreatHall: the fourth site, in graybox. About 42,000 blocks.
 
 	A long stone hall on a plinth, its walls two cells thick and, at this
-	size, twenty-four layers tall. Stepped stone buttresses divide the long
+	size, twenty-five layers tall. Stepped stone buttresses divide the long
 	walls into bays, each with a tall glass window under a pointed head, and
 	pairs of buttresses brace the corners. A stone porch with a pointed arch
 	and its own slate gable stands in front of the door.
@@ -24,8 +24,10 @@
 	Two annexes stand against the back wall. At the west corner a square
 	tower, its walls three cells thick, rises far past the ridge: a door from
 	the hall, timber floors, glass slits on every face of every storey, a
-	parapet of merlons, and a slate spire that steps in every second layer
-	and waits for the walls' top corners. At the east end a stone kitchen,
+	belfry with two tall openings in every face, a parapet corbelled out
+	past the walls with merlons and a pinnacle at each corner, and a slate
+	spire that steps in every second layer and waits for the walls' top
+	corners. At the east end a stone kitchen,
 	lower than the hall's eaves, with its own slate roof, windows, a door to
 	the yard and a big chimney on its back wall.
 
@@ -56,7 +58,7 @@ local function greatHall(scale: number)
 	end
 
 	-- The tower's footprint, which the hall's own blocks leave to it.
-	local TW = len(16) // 2 * 2 + 1 -- the tower's width, odd so it has a middle
+	local TW = len(13) // 2 * 2 + 1 -- the tower's width, odd so it has a middle
 	local TO = len(5) -- how far it stands out past the hall's west and back walls
 	local BAY = 7 -- a buttress every seventh cell along the long walls
 	local BAYS = math.max(6, len(8))
@@ -137,16 +139,18 @@ local function greatHall(scale: number)
 	local TXC, TZC = TX0 + (TW - 1) // 2, TZ0 + (TW - 1) // 2
 	local TR = (TW - 1) // 2
 	local THICK = 3
-	local TOWER_TOP = math.max(RIDGE + 12, len(58))
+	local TOWER_TOP = math.max(RIDGE + 14, len(50))
 	local STOREY = 8
 	local function ringOf(x: number, z: number): number
 		return math.max(math.abs(x - TXC), math.abs(z - TZC))
 	end
 	-- A plinth under it, the walls with a door from the hall and a slit on
 	-- every face of every storey, and a timber floor each storey. The door
-	-- is in the front wall, where it stands inside the hall.
+	-- is in the front wall, where it stands inside the hall. The top storey
+	-- is a belfry, with two tall openings in every face.
 	box(TX0 - 2, TX1 + 2, 0, 0, TZ0 - 2, TZ1 + 2, "stone")
 	local TDOOR = math.max(TX0 + THICK, X0 + 2)
+	local BELFRY = TOWER_TOP - 7 -- the belfry's floor
 	local corners = {}
 	for y = 1, TOWER_TOP do
 		local storeyLayer = (y - 1) % STOREY
@@ -156,15 +160,17 @@ local function greatHall(scale: number)
 				if r > TR - THICK then
 					local alongX = math.abs(z - TZC) == r
 					local offset = if alongX then x - TXC else z - TZC
-					local slit = offset == 0 and storeyLayer >= 3 and storeyLayer <= 5 and y > STOREY
+					local belfry = y > BELFRY + 1 and y < TOWER_TOP - 1
+					local slit = offset == 0 and storeyLayer >= 3 and storeyLayer <= 5 and y > STOREY and y < BELFRY
+					local opening = belfry and math.abs(offset) >= 2 and math.abs(offset) <= 3
 					local door = z <= TZ0 + THICK - 1 and x >= TDOOR and x <= TDOOR + 2 and y <= 3
-					if not door then
+					if not door and not opening then
 						local slot = add(x, y, z, if slit then "glass" else "stone")
 						if y == TOWER_TOP and r == TR and math.abs(x - TXC) == TR and math.abs(z - TZC) == TR then
 							table.insert(corners, slot)
 						end
 					end
-				elseif storeyLayer == 0 and y > 1 then
+				elseif (storeyLayer == 0 and y > 1 and y < BELFRY) or y == BELFRY then
 					add(x, y, z, "timber")
 				end
 			end
@@ -176,11 +182,20 @@ local function greatHall(scale: number)
 			add(x, TOWER_TOP, z, "timber")
 		end
 	end
-	-- The parapet: merlons on every other cell of the outer ring.
-	for z = TZ0, TZ1 do
-		for x = TX0, TX1 do
-			if ringOf(x, z) == TR and (x + z) % 2 == 0 then
-				add(x, TOWER_TOP + 1, z, "stone")
+	-- The parapet: a course corbelled out a cell past the walls, merlons on
+	-- every other cell of it, and a pinnacle at each corner.
+	for z = TZ0 - 1, TZ1 + 1 do
+		for x = TX0 - 1, TX1 + 1 do
+			if ringOf(x, z) == TR + 1 then
+				add(x, TOWER_TOP, z, "stone")
+				local corner = math.abs(x - TXC) == TR + 1 and math.abs(z - TZC) == TR + 1
+				if corner then
+					for y = TOWER_TOP + 1, TOWER_TOP + 3 do
+						add(x, y, z, "stone")
+					end
+				elseif (x + z) % 2 == 0 then
+					add(x, TOWER_TOP + 1, z, "stone")
+				end
 			end
 		end
 	end
@@ -353,7 +368,7 @@ local function greatHall(scale: number)
 	-- from them, a tie beam across the hall on each pair, and a truss on each
 	-- beam: a short king post carrying a collar that reaches across to the
 	-- slopes, which is in reach from the roof.
-	local COLLAR = WALL_TOP + len(5)
+	local COLLAR = WALL_TOP + math.min(6, len(5)) -- a king post any taller is out of reach
 	local beams = {}
 	for bay = 1, BAYS - 1 do
 		local x = X0 + bay * BAY
