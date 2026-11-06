@@ -72,7 +72,7 @@ local function plainNearest(index, px, py, pz, radius, accept, maxCount, out): n
 end
 
 -- A click, with its batch found by plainNearest: the slots nearest the
--- aimed one, out to grasp plus half the batch.
+-- aimed one, anywhere on the site.
 local function plainHand(site, index, slot, stats, causer, random, placed): (number, number)
 	if not BuildSite.place(site, slot, Cause.HAND, causer) then
 		return 0, 0
@@ -83,7 +83,7 @@ local function plainHand(site, index, slot, stats, causer, random, placed): (num
 		local bp = index.blueprint
 		local cx, cy, cz = bp.x[slot] + 0.5, bp.y[slot] + 0.5, bp.z[slot] + 0.5
 		local batch = {}
-		local n = plainNearest(index, cx, cy, cz, stats.grasp + stats.batch / 2, function(s)
+		local n = plainNearest(index, cx, cy, cz, math.huge, function(s)
 			return BuildSite.canPlace(site, s, Cause.BATCH)
 		end, stats.batch - 1, batch)
 		for i = 1, n do
@@ -392,7 +392,6 @@ Test.case("a click places what it did with its batch found by the full scan", fu
 			local site, twin = scene(bp, seed, share), scene(bp, seed, share)
 			-- Batches from one block to dozens, so some search far past the grasp.
 			local stats = {
-				grasp = rng:range(1, 8),
 				batch = if rng:next() < 0.5 then rng:int(1, 9) else rng:int(10, 64),
 				chainChance = if rng:next() < 0.5 then 0 else 0.4,
 				chainRadius = rng:range(1, 2.5),
