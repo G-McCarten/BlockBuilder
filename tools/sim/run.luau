@@ -6,12 +6,20 @@
 	  lune run tools/sim/run -- --coop                    solo against 2, 3 and 4 players
 	  lune run tools/sim/run -- --site TestHut --tool --pets 1
 	  lune run tools/sim/run -- --site all --boss all --seeds 5    every site at every difficulty
+	  lune run tools/sim/run -- --stress 20000            a generated district of 20,000 blocks
 	  lune run tools/sim/run -- --seeds 10 --report       every table below, over 10 runs
 
-	Options: --site <Name>|all, --players <n>, --boss Normal|Hard|Nightmare|all
-	(all is no boss and then each difficulty), --seeds <n>, --seed <first
-	seed>, --coop, --tool, --pets <n>, --max <minutes>, --share <party share
-	of pay>, --buy cheapest|value (how bots choose skills), --bought.
+	Options: --site <Name>|all, --stress <blocks>, --players <n>, --boss
+	Normal|Hard|Nightmare|all (all is no boss and then each difficulty),
+	--seeds <n>, --seed <first seed>, --coop, --tool, --pets <n>, --max
+	<minutes>, --share <party share of pay>, --payout <n>, --buy
+	cheapest|value (how bots choose skills), --bought.
+
+	--stress plays StressSite's district of that many blocks, the stress
+	test's hollow buildings, instead of a stamped site: a stand-in for sites
+	bigger than today's. A list such as --stress 20000,26000 plays each, and
+	--stress Ladder plays the stress test's ladder. A stress site pays what
+	the first site in SiteList pays, unless --payout says otherwise.
 
 	Tables, averaged over the seeds (with one seed, that run's own), by
 	minute every --every <n> minutes (default 5):
@@ -33,6 +41,7 @@ local process = require("@lune/process")
 local Blueprint = require("../../src/shared/Blueprint")
 local BossConfig = require("../../src/shared/BossConfig")
 local SiteList = require("../../src/shared/SiteList")
+local StressSite = require("../../src/shared/StressSite")
 local Sim = require("./Sim")
 local Tuning = require("./Tuning")
 
@@ -49,14 +58,43 @@ local function flag(name: string): boolean
 	return table.find(args, name) ~= nil
 end
 
-local siteOption = option("--site") or "WoodcuttersLodge"
-local siteNames = {}
-if siteOption == "all" then
-	for _, entry in SiteList do
-		table.insert(siteNames, entry.id)
+-- The sites to play, each by its name and how to build its blueprint.
+type SiteEntry = { name: string, payout: number?, load: () -> any }
+local sites: { SiteEntry } = {}
+local stressOption = option("--stress")
+if stressOption then
+	local sizes = StressSite.plan(stressOption)
+	if sizes == nil then
+		print(`no stress site of {stressOption}: a number of blocks, a list of them, or Ladder`)
+		process.exit(2)
+	end
+	for _, count in sizes :: { number } do
+		table.insert(sites, {
+			name = `Stress{count}`,
+			payout = SiteList[1].payout,
+			load = function()
+				return Blueprint.build(StressSite.source(count))
+			end,
+		})
 	end
 else
-	table.insert(siteNames, siteOption)
+	local siteOption = option("--site") or "WoodcuttersLodge"
+	local ids = {}
+	if siteOption == "all" then
+		for _, entry in SiteList do
+			table.insert(ids, entry.id)
+		end
+	else
+		table.insert(ids, siteOption)
+	end
+	for _, id in ids do
+		table.insert(sites, {
+			name = id,
+			load = function()
+				return Blueprint.load(require(`../../src/shared/Blueprints/{id}`) :: any)
+			end,
+		})
+	end
 end
 
 local bossOption = option("--boss")
@@ -98,6 +136,7 @@ local base = {
 	partyShare = tonumber(option("--share") or ""),
 	buying = buying,
 }
+local payoutOption = tonumber(option("--payout") or "")
 
 local function percent(share: number): string
 	return string.format("%.0f%%", share * 100)
@@ -255,11 +294,12 @@ local function line(label: string, players: number, s: Sim.Summary): string
 	)
 end
 
-local function summarise(bp: any, bossName: string, players: number): Sim.Summary
+local function summarise(bp: any, payout: number?, bossName: string, players: number): Sim.Summary
 	local results = {}
 	for seed = firstSeed, firstSeed + seeds - 1 do
 		local options = table.clone(base) :: any
 		options.blueprint = bp
+		options.payout = payoutOption or payout
 		options.boss = if bossName == "none" then nil else (BossConfig :: any)[bossName]
 		options.players = players
 		options.seed = seed
@@ -313,15 +353,16 @@ end
 
 -- grid[site][boss]: each summary, for the closing table.
 local grid: { [string]: { [string]: Sim.Summary } } = {}
-for _, siteName in siteNames do
-	local bp = Blueprint.load(require(`../../src/shared/Blueprints/{siteName}`) :: any)
+for _, entry in sites do
+	local bp = entry.load()
+	local siteName = entry.name
 	grid[siteName] = {}
 	for _, bossName in bossNames do
 		if flag("--coop") then
-			local solo = summarise(bp, bossName, 1)
+			local solo = summarise(bp, entry.payout, bossName, 1)
 			local parties = {}
 			for players = 2, 4 do
-				parties[players] = summarise(bp, bossName, players)
+				parties[players] = summarise(bp, entry.payout, bossName, players)
 				print(
 					string.format("  %d players take %.2f of the solo time", players, parties[players].mean / solo.mean)
 				)
@@ -331,12 +372,12 @@ for _, siteName in siteNames do
 			end
 			grid[siteName][bossName] = solo
 		else
-			grid[siteName][bossName] = summarise(bp, bossName, tonumber(option("--players") or "1") or 1)
+			grid[siteName][bossName] = summarise(bp, entry.payout, bossName, tonumber(option("--players") or "1") or 1)
 		end
 	end
 end
 
-if #siteNames > 1 or #bossNames > 1 then
+if #sites > 1 or #bossNames > 1 then
 	local head, rule = { "| site |" }, { "|---|" }
 	for _, bossName in bossNames do
 		table.insert(head, ` {bossName} |`)
@@ -344,7 +385,8 @@ if #siteNames > 1 or #bossNames > 1 then
 	end
 	print(`\n{table.concat(head)}`)
 	print(table.concat(rule))
-	for _, siteName in siteNames do
+	for _, entry in sites do
+		local siteName = entry.name
 		local cells = { `| {siteName} |` }
 		local none = grid[siteName].none
 		for _, bossName in bossNames do
