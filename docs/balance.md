@@ -4,6 +4,8 @@ What the run sim (`tools/sim`) measures about the economy and the boss, and the 
 
 Bots buy the cheapest skill level they can afford unless a table says they buy by value (`--buy value`, below). Run every command from the repo root.
 
+**These tables predate the current tree.** The tree has since been retuned for first sites of about 20,000 blocks, with Many Hands doubling the batch to 32 a click, and the sites are being scaled up to match. The README's "What the sim measures" has the new tree's numbers on a 20,000-block stand-in (`--stress 20000`). Every table here will be rerun once the bigger sites land.
+
 The sites were measured on their current blueprints: WoodcuttersLodge 5,928 blocks, IceBridge 7,459, Watchtower 9,617 and GreatHall 12,333. When a blueprint changes, its rows change too, so rerun them.
 
 ## Sites by difficulty
