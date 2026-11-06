@@ -1,7 +1,10 @@
+local Blueprint = require("../src/shared/Blueprint")
 local BossBrain = require("../src/shared/BossBrain")
 local BossConfig = require("../src/shared/BossConfig")
+local BotBrain = require("../src/shared/BotBrain")
 local BuildSite = require("../src/shared/BuildSite")
 local SiteSession = require("../src/shared/SiteSession")
+local SkillTuning = require("../src/shared/SkillTuning")
 local Rng = require("./lib/Rng")
 local Sites = require("./lib/Sites")
 local Test = require("./lib/Test")
@@ -215,6 +218,74 @@ Test.case("hard: a peace circle comes at most once every peace.every seconds", f
 			`circle {i} came {raised[i] - raised[i - 1]} s after the last`
 		)
 	end
+end)
+
+Test.case("hard: the stubborn band holds no more than its share of the site unbuilt", function()
+	local hard = BossConfig.Hard
+	local share = hard.stubborn.share :: number
+	Test.check(share > 0, "Hard's band has a share")
+	local bp = Blueprint.load(require("../src/shared/Blueprints/WoodcuttersLodge") :: any)
+	local target = share * bp.count
+	for seed = 1, 3 do
+		local rng = Rng.new(seed)
+		local session = SiteSession.new(bp, nil, function()
+			return rng:next()
+		end)
+		SiteSession.setBoss(session, hard)
+		SiteSession.join(session, 1, stats())
+		SiteSession.move(session, 1, -40, 1, -40)
+		buildTo(session, hard.riseAt + 0.01)
+		SiteSession.step(session, 0.1)
+		buildTo(session, hard.stubborn.at + 0.001)
+		SiteSession.step(session, 0.1)
+		local site, held = session.site, 0
+		for s = 1, site.count do
+			if bit32.btest(site.shield[s], Shield.HAND_ONLY) and not BuildSite.isPlaced(site, s) then
+				held += 1
+			end
+		end
+		Test.check(
+			held >= target / 2 and held <= target,
+			`seed {seed}: {held} stubborn slots unbuilt, for a share of {target}`
+		)
+	end
+end)
+
+Test.case("hard: a bot held near the cap breaks every binding before it lays again", function()
+	local hard = BossConfig.Hard
+	local session = lodgeWithBoss(hard, 9)
+	buildTo(session, 0.25)
+	run(session, 0.3)
+	buildTo(session, hard.binding.at + 0.01)
+	run(session, 0.1)
+	buildTo(session, 1)
+	local site = session.site
+	Test.check(site.bound and site.placedCount == site.boundCap, "held at the cap")
+	-- A late run's batch, which lays the boss's undoing again at once: every
+	-- level of Armful and Many Hands, so the bot keeps it when it buys.
+	local levels = { batch = 3, hands = 3 }
+	Test.equal(SkillTuning.stats(levels).batch, 32, "a batch of 32")
+	SiteSession.setStats(session, 1, SkillTuning.stats(levels) :: any)
+	-- The boss has undone a few, so the count sits more than 5 under the cap.
+	local undone = 0
+	for s = 1, site.count do
+		if undone < 12 and BuildSite.undo(site, s, math.huge, Cause.BOSS, 0) then
+			undone += 1
+		end
+	end
+	Test.check(site.placedCount < site.boundCap - 5, "under the cap by more than 5")
+	local bot = BotBrain.new(session, 1, -2, 1, -2)
+	bot.levels = levels
+	local steps = 0
+	while site.bound and steps < 3000 do
+		BotBrain.step(bot, session, SkillTuning, 0.1, false)
+		SiteSession.step(session, 0.1)
+		steps += 1
+		if steps == 1 then
+			Test.check(bot.breaking, "it sets out for the bindings at once")
+		end
+	end
+	Test.check(not site.bound, `every binding broken, in {steps} steps`)
 end)
 
 Test.case("nightmare: strikes smother, and a final stand takes shoos to end", function()

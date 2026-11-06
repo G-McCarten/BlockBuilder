@@ -12,15 +12,21 @@
 	solo, Normal adds a little to a run, Hard clearly more and Nightmare more
 	again. What each lever does there:
 
-	  - Undoing next to where players work costs them little: a click's
-	    batch lays the gaps again. The boss bites a compact site only when it
-	    undoes faster than that, so Normal already mends 4 blocks at a time.
+	  - Undoing costs players little once their batch is big: a click's
+	    batch takes the nearest workable slots anywhere on the site, so it
+	    lays whatever the boss undid along with fresh work. Late in a run, at
+	    32 a click, Normal's mending adds about 1% to a run.
+	  - Stubborn slots cost the most, because each needs a click of its own.
+	    So Hard and Nightmare lean on the band, and its share sets their cost.
 	  - Markers and shoo trips cost a site where players work steadily, but
 	    on a compact one the walk often lands them by fresh work. Markers come
 	    every 90 seconds so the long sites don't pay for them twice.
-	  - The stubborn band runs through every height, so where it lies along a
-	    wall it takes much of the site. It comes late and narrow to keep that
-	    from deciding a run.
+	  - The stubborn band runs through every height. Where it fell at random,
+	    a tall wall or tower in its slab could hold thousands of slots, and
+	    one Great Hall run took twice the others. Now its share picks a slab
+	    holding about that share of the site unbuilt, so it costs the same
+	    on every seed. A bigger site has more slots to a share, and a run
+	    that doesn't grow as fast, so the band costs a big site more.
 	  - Minions reach 3 cells: at 4, on the smallest test site, they undo
 	    about as fast as a fresh player lays and the run stalls.
 	  - A peace circle comes at most once a minute. The boss works the spot
@@ -44,11 +50,12 @@ local Normal = {
 
 local Hard = table.clone(Normal)
 Hard.mendCount = 6
-Hard.stubborn = { at = 0.6, width = 2 }
+Hard.stubborn = { at = 0.6, width = 2, share = 0.02 }
 Hard.peace = { radius = 5, every = 60 }
 Hard.binding = { at = 0.55, cap = 0.8, breakRadius = 2.5, bounty = 40 }
 
 local Nightmare = table.clone(Hard)
+Nightmare.stubborn = { at = 0.6, width = 2, share = 0.03 }
 Nightmare.minions = { count = 4, speed = 3, interval = 4, radius = 3 }
 Nightmare.collapse = { at = { 0.4, 0.7 }, size = 8, budget = 120 }
 Nightmare.strike = { interval = 12, radius = 4, smother = 3 }

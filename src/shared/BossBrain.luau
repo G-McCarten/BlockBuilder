@@ -21,9 +21,11 @@
 	               within breakRadius breaks it for a bounty; otherwise, when
 	               its fuse runs out, it undoes every exposed block in radius.
 	  stubborn     once, at its share built, a band of slots across the site
-	               that only a player's own click can place
-	  peace        while the boss works a spot, nothing can be placed within
-	               radius of it, until it is shooed
+	               that only a player's own click can place. With share, the
+	               band is placed to hold about that share of the site unbuilt
+	  peace        at most once every peace.every seconds, while the boss
+	               works a spot, nothing can be placed within radius of it,
+	               until it is shooed
 	  binding      once, at its share built, three bindings at far corners of
 	               the site. While any stands the site can't pass cap of its
 	               blocks. A player within breakRadius breaks one for a bounty.
@@ -56,7 +58,7 @@ export type Tuning = {
 	shooRadius: number,
 	shooedFor: number,
 	markers: { interval: number, fuse: number, radius: number, breakRadius: number, bounty: number }?,
-	stubborn: { at: number, width: number }?,
+	stubborn: { at: number, width: number, share: number? }?,
 	peace: { radius: number, every: number? }?,
 	binding: { at: number, cap: number, breakRadius: number, bounty: number }?,
 	minions: { count: number, speed: number, interval: number, radius: number }?,
@@ -197,6 +199,60 @@ local function pickSpot(session: SessionLike, needExposed: boolean): (number?, n
 		return nil, nil, nil
 	end
 	return bp.x[bestS] + 0.5, bp.y[bestS] + 0.5, bp.z[bestS] + 0.5
+end
+
+-- Where the stubborn band starts: a slab width cells thick across the site's
+-- long axis, at every height. Each of its slots needs a click of its own, so
+-- what it costs is how many it holds unbuilt. With share, it's a slab whose
+-- unbuilt slots come closest to share of the site without passing it, so
+-- the band costs about as much on every site and every seed; where it lay at
+-- random, a tall wall or tower in the slab could add half again to a run.
+-- Without share, anywhere.
+local function pickBand(session: SessionLike, axis: number, width: number, share: number?): number
+	local site, bp = session.site, session.blueprint
+	local size = if axis == 1 then bp.sizeX else bp.sizeZ
+	local span = math.max(0, size - width)
+	if share == nil then
+		return session.random() * span
+	end
+	local coord = if axis == 1 then bp.x else bp.z
+	local counts = table.create(size, 0)
+	for s = 1, site.count do
+		if not BuildSite.isPlaced(site, s) then
+			local c = coord[s] + 1
+			counts[c] += 1
+		end
+	end
+	local target = share * site.count
+	local near: { number } = {}
+	local under, underSum = nil, -1
+	local least, leastSum = 0, math.huge
+	local sum = 0
+	for i = 1, math.min(width, size) do
+		sum += counts[i]
+	end
+	for lo = 0, span do
+		if lo > 0 then
+			sum += (counts[lo + width] or 0) - counts[lo]
+		end
+		if sum > 0 then
+			if sum <= target then
+				if sum >= target / 2 then
+					table.insert(near, lo)
+				end
+				if sum > underSum then
+					under, underSum = lo, sum
+				end
+			end
+			if sum < leastSum then
+				least, leastSum = lo, sum
+			end
+		end
+	end
+	if #near > 0 then
+		return near[1 + math.floor(session.random() * #near)]
+	end
+	return under or least
 end
 
 local function setPeace(brain: Brain, session: SessionLike, on: boolean)
@@ -465,8 +521,7 @@ function BossBrain.step(brain: Brain, session: SessionLike, dt: number)
 		brain.stubbornDone = true
 		local bp = session.blueprint
 		local axis = if bp.sizeX >= bp.sizeZ then 1 else 3
-		local size = if axis == 1 then bp.sizeX else bp.sizeZ
-		local lo = session.random() * math.max(0, size - stubborn.width)
+		local lo = pickBand(session, axis, stubborn.width, stubborn.share)
 		BossEffects.shieldBand(site, session.index, axis, lo, lo + stubborn.width, Shield.HAND_ONLY, true)
 		emit(session, "stubborn", { amount = lo })
 	end

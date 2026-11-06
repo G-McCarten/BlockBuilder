@@ -44,6 +44,10 @@ export type Bot = {
 	buying: string,
 	-- The node it is saving for, buying by value. Chosen again after each buy.
 	want: any?,
+	-- Whether it has set out to break the bindings. Once the site is held near
+	-- its cap, it breaks every one before it lays again, as a player told
+	-- the site is held would.
+	breaking: boolean,
 }
 
 export type Options = {
@@ -82,6 +86,7 @@ function BotBrain.new(session: any, id: number, x: number, y: number, z: number,
 		levels = {},
 		target = 0,
 		busyUntil = 0,
+		breaking = false,
 		placeable = function(s: number): boolean
 			return BuildSite.canPlace(site, s, HAND)
 		end,
@@ -279,7 +284,16 @@ local function bossGoal(bot: Bot, session: any, tuning: Tuning): (number?, numbe
 		return nil, nil, nil
 	end
 	local site = session.site
-	if site.bound and site.placedCount >= site.boundCap - 5 then
+	if not site.bound then
+		bot.breaking = false
+	elseif not bot.breaking then
+		-- Held near the cap. A big batch lays the boss's undoing again at once,
+		-- so the count hovers just under the cap: count a batch's worth as near.
+		local worker = session.workers[bot.id]
+		local batch = if worker then worker.stats.batch else 1
+		bot.breaking = site.placedCount >= site.boundCap - math.max(5, 2 * batch)
+	end
+	if bot.breaking then
 		local best, bestD = nil, math.huge
 		for _, b in boss.bindings do
 			if not b.broken then
