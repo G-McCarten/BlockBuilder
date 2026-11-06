@@ -1,5 +1,6 @@
 local roblox = require("@lune/roblox")
 
+local Blueprint = require("../src/shared/Blueprint")
 local BossConfig = require("../src/shared/BossConfig")
 local FakeRoblox = require("./lib/FakeRoblox")
 local SkillTuning = require("../src/shared/SkillTuning")
@@ -12,6 +13,31 @@ local STUDS = 3
 local ORIGIN = Vector3.new(24, 0, 24)
 -- A phone held sideways, in points.
 local PHONE = Vector2.new(844, 390)
+-- The first site, which the place starts with: its columns that hold a
+-- block, and its ground slots.
+local LODGE = Blueprint.load(require("../src/shared/Blueprints/WoodcuttersLodge") :: any)
+local COLUMNS: { { number } } = {}
+local GROUND: { number } = {}
+do
+	local seen = {}
+	for s = 1, LODGE.count do
+		local column = LODGE.x[s] + LODGE.z[s] * LODGE.sizeX
+		if not seen[column] then
+			seen[column] = true
+			table.insert(COLUMNS, { LODGE.x[s], LODGE.z[s] })
+		end
+		if LODGE.y[s] == 0 then
+			table.insert(GROUND, s)
+		end
+	end
+end
+
+-- The column a walk over the first site aims at on a frame: every column
+-- once before any again, scattered over the site.
+local function sweep(frame: number): (number, number)
+	local column = COLUMNS[(frame * 7919) % #COLUMNS + 1]
+	return column[1], column[2]
+end
 
 -- Boots the place with one player. device "phone" gives the client touch
 -- and no mouse, on a phone-sized screen.
@@ -152,6 +178,14 @@ local function aimAt(world, player, x: number, y: number, z: number)
 	world.aimRay = Ray.new(eye, (centre - eye).Unit)
 end
 
+-- Stands the character by column (x, z) and aims straight down at it, so
+-- the column's top is in reach wherever it is on the site.
+local function aimDown(world, player, x: number, z: number)
+	local root = realOf(world, player.Character):FindFirstChild("HumanoidRootPart")
+	root.CFrame = CFrame.new(ORIGIN + Vector3.new(x + 0.5, 1.5, z - 1) * STUDS)
+	world.aimRay = Ray.new(ORIGIN + Vector3.new(x + 0.5, 40, z + 0.5) * STUDS, Vector3.new(0, -1, 0))
+end
+
 local function hold(world)
 	world:input("began", { UserInputType = Enum.UserInputType.MouseButton1 })
 end
@@ -268,7 +302,7 @@ Test.case("the Hard boss rises, binds the site and is drawn without errors", fun
 	hold(world)
 	local bound = false
 	for frame = 1, 3000 do
-		local x, z = (frame * 7) % 41, (frame * 11) % 28
+		local x, z = sweep(frame)
 		world.aimRay = Ray.new(ORIGIN + Vector3.new(x + 0.5, 40, z + 0.5) * STUDS, Vector3.new(0, -1, 0))
 		world:step(1 / 60)
 		local boss = world.realGame:GetService("Workspace"):FindFirstChild("SiteBoss")
@@ -286,9 +320,11 @@ end)
 Test.case("a hoist pad lifts the player to the working height", function()
 	local world, player = boot({ Batch = 200, Grasp = 40, Cooldown = 0.05, Difficulty = "None" })
 	hold(world)
-	for frame = 1, 120 do
-		local x, z = (frame * 7) % 41, (frame * 11) % 28
-		world.aimRay = Ray.new(ORIGIN + Vector3.new(x + 0.5, 40, z + 0.5) * STUDS, Vector3.new(0, -1, 0))
+	-- Over the ground slots, long enough to lay them all, so the work has
+	-- left the ground.
+	for frame = 1, 240 do
+		local s = GROUND[(frame * 7919) % #GROUND + 1]
+		aimDown(world, player, LODGE.x[s], LODGE.z[s])
 		world:step(1 / 60)
 	end
 	release(world)
@@ -304,21 +340,22 @@ Test.case("a hoist pad lifts the player to the working height", function()
 end)
 
 Test.case("far chunks draw as merged boxes and come back near without losing a block", function()
-	local world = boot({ Batch = 400, Grasp = 80, Cooldown = 0.05, Difficulty = "None" })
+	-- A small batch, so the blocks laid stay in a patch at the front corner.
+	local world = boot({ Batch = 60, Grasp = 80, Cooldown = 0.05, Difficulty = "None" })
 	hold(world)
-	for frame = 1, 90 do
-		local x, z = (frame * 7) % 41, (frame * 11) % 28
+	for frame = 1, 150 do
+		local x, z = (frame * 7) % 31, (frame * 11) % 23
 		world.aimRay = Ray.new(ORIGIN + Vector3.new(x + 0.5, 40, z + 0.5) * STUDS, Vector3.new(0, -1, 0))
 		world:step(1 / 60)
 	end
 	release(world)
-	-- Look from right above the site: every chunk near.
-	world.camera.CFrame = CFrame.new(ORIGIN + Vector3.new(60, 30, 40))
+	-- Look from right above the patch: every chunk of it near.
+	world.camera.CFrame = CFrame.new(ORIGIN + Vector3.new(48, 30, 36))
 	for _ = 1, 30 do
 		world:step(1 / 60)
 	end
 	local standing = blockCount(world)
-	Test.check(standing > 2000, `built {standing}`)
+	Test.check(standing > 1000, `built {standing}`)
 	Test.equal(select(1, farBoxes(world)), 0, "no merged boxes near")
 
 	-- Far away: merged boxes, the same cells.
@@ -332,7 +369,7 @@ Test.case("far chunks draw as merged boxes and come back near without losing a b
 	Test.check(boxes < standing / 5, `{standing} blocks in {boxes} boxes`)
 
 	-- Back near: single blocks again.
-	world.camera.CFrame = CFrame.new(ORIGIN + Vector3.new(60, 30, 40))
+	world.camera.CFrame = CFrame.new(ORIGIN + Vector3.new(48, 30, 36))
 	for _ = 1, 30 do
 		world:step(1 / 60)
 	end
@@ -461,11 +498,10 @@ Test.case("a finished site is announced, then a fresh one replaces it", function
 	world.workspaceProxy:SetAttribute("Cooldown", 0.05)
 	hold(world)
 	local finished = false
-	for frame = 1, 4000 do
+	for frame = 1, 6000 do
 		-- Aim straight down at a different column each frame, over the whole site.
-		local x, z = (frame * 7) % 41, (frame * 11) % 28
-		local top = ORIGIN + Vector3.new(x + 0.5, 40, z + 0.5) * STUDS
-		world.aimRay = Ray.new(top, Vector3.new(0, -1, 0))
+		local x, z = sweep(frame)
+		aimDown(world, player, x, z)
 		world:step(1 / 60)
 		if string.find(hudText(world, player, "Built"), "laid 100%", 1, true) then
 			finished = true
@@ -480,16 +516,17 @@ Test.case("a finished site is announced, then a fresh one replaces it", function
 	local summary = hudText(world, player, "Announce")
 	Test.check(string.find(summary, "earned 100 Hearthstones", 1, true) ~= nil, `the payout, all of it solo: {summary}`)
 	-- The ending: the blocks vanish and rise again over ten seconds.
-	Test.check(blockCount(world) < 5928, `the timelapse hides the build first, {blockCount(world)} showing`)
+	local count = LODGE.count
+	Test.check(blockCount(world) < count, `the timelapse hides the build first, {blockCount(world)} showing`)
 	for _ = 1, 5 * 60 do
 		world:step(1 / 60)
 	end
 	local halfway = blockCount(world)
-	Test.check(halfway > 1000 and halfway < 5000, `half way through, {halfway} showing`)
+	Test.check(halfway > count / 6 and halfway < count * 5 / 6, `half way through, {halfway} of {count} showing`)
 	for _ = 1, 6 * 60 do
 		world:step(1 / 60)
 	end
-	Test.equal(drawnCount(world), 5928, "the whole build, risen again")
+	Test.equal(drawnCount(world), count, "the whole build, risen again")
 	for _ = 1, 20 * 60 do
 		world:step(1 / 60)
 	end
