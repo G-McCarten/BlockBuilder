@@ -14,8 +14,8 @@ The proofs the formula's section 7 asks for, as far as this repo can take them b
 |---|---|---|
 | 1 | 10,000+ random placements and undos with no invariant broken; codec round trip | done: `tests/BuildSite.spec.luau`, `tests/SiteCodec.spec.luau`, and [`docs/invariants.md`](docs/invariants.md) for all six invariants |
 | 2 | **Gate:** you play it and judge the click; the stress-test ceiling on Low at phone size | ready for you: [`docs/playtest.md`](docs/playtest.md), and `StressTest` = `Ladder` measures the ceiling in one Play |
-| 3 | Sim and a real bot run within 10% of 30 minutes; every pet rarity works | sim 30.7 min solo on a 20,000-block stand-in, ending at 32 blocks a click; the bot run is in the playtest list; pet rarities wait for the fork's PetService |
-| 4 | 20 seeded bot runs all finish, Hard differs from Normal, co-op ratios near 5.4, two real clients in Local Server | sim on the stand-in: every run finishes at every difficulty, Hard +19% against Normal's +1%, co-op 0.51, 0.34, 0.25; Local Server is in the playtest list |
+| 3 | Sim and a real bot run within 10% of 30 minutes; every pet rarity works | sim 29.4 min solo on the 20,008-block lodge, ending at 32 blocks a click; the bot run is in the playtest list; pet rarities wait for the fork's PetService |
+| 4 | 20 seeded bot runs all finish, Hard differs from Normal, co-op ratios near 5.4, two real clients in Local Server | sim: every site finishes at every difficulty, Hard +12 to 21% against Normal's +1%, co-op 0.50, 0.34, 0.26; Local Server is in the playtest list |
 | 5 to 7 | The look, all content, launch | need the fork, Studio and your approval |
 
 ## Play the prototype
@@ -127,20 +127,22 @@ The tests boot the place, lay blocks by holding the mouse, buy a skill, let a Ha
 
 ### What the sim measures
 
-`lune run tools/sim/run` plays whole runs with bots through `SiteSession`. Bots buy the cheapest skill they can afford (or, with `--buy value`, the level that adds the most pay for its price), use the ability when it's ready, break markers and bindings, and shoo the boss; otherwise they work the nearest slot no teammate could lay from where they stand. `--stress <blocks>` plays a generated `StressSite` district instead of a stamped site, a stand-in for the bigger sites until they land. The economy in `src/shared/SkillTuning.luau` is a placeholder, tuned so a solo first run of a site of about 20,000 blocks takes about 30 minutes and ends at dozens of blocks a click. Solo on `--stress 20000`, minutes over 20 seeds, every run finished:
+`lune run tools/sim/run` plays whole runs with bots through `SiteSession`. Bots buy the cheapest skill they can afford (or, with `--buy value`, the level that adds the most pay for its price), use the ability when it's ready, break markers and bindings, and shoo the boss; otherwise they work the nearest slot no teammate could lay from where they stand. `--stress <blocks>` plays a generated `StressSite` district instead of a stamped site. The economy in `src/shared/SkillTuning.luau` is a placeholder, tuned so a solo first run of the 20,008-block lodge takes about 30 minutes and ends at dozens of blocks a click. Solo, minutes over 20 seeds each, every run finished:
 
-| Bots buy | No boss | Normal | Hard | Nightmare |
+| Site | No boss | Normal | Hard | Nightmare |
 |---|---|---|---|---|
-| cheapest first | 30.7 | 31.0 (+1%) | 36.6 (+19%) | 38.3 (+25%) |
-| by value | 28.0 | 28.4 (+2%) | 32.3 (+16%) | 35.5 (+27%) |
+| WoodcuttersLodge | 29.4 | 29.7 (+1%) | 33.0 (+12%) | 36.0 (+23%) |
+| IceBridge | 32.4 | 32.8 (+1%) | 37.6 (+16%) | 42.6 (+32%) |
+| Watchtower | 35.9 | 36.3 (+1%) | 41.4 (+15%) | 48.1 (+34%) |
+| GreatHall | 40.4 | 40.7 (+1%) | 48.9 (+21%) | 55.1 (+36%) |
 
 | Run | Result |
 |---|---|
-| 2, 3, 4 players, Normal | 0.51, 0.34, 0.25 of the solo time (Unharvester: 0.51, 0.36, 0.27); each player's payout a minute is 0.98 to 0.99 of the solo rate |
-| Blocks a click lays itself | a median of 32 from minute 26 of 30.7 (cheapest first) and from minute 23 of 28.0 (by value) |
-| Bigger districts, no boss | 26,000 blocks 33.3 min, 33,000 36.9, 42,000 40.7 (cheapest first); 30.6, 34.0, 37.4 by value |
+| 2, 3, 4 players, Normal, lodge | 0.50, 0.34, 0.26 of the solo time (Unharvester: 0.51, 0.36, 0.27); each player's payout a minute is 0.97 to 0.99 of the solo rate |
+| Bots buying by value, lodge, no boss | 26.9 min, 9% faster than cheapest first |
+| Blocks a click lays itself, lodge | a median of 32 from minute 25 of 29.4 (cheapest first), and from minute 22 of 26.9 (by value) |
 
-Armful adds a brick a click a level, to 4, and Many Hands doubles the batch a level, to 32. A click's batch is the workable slots nearest the aimed one, anywhere on the site. A run earns about an Ember a block, and at 32 a click a bot lays about 2,100 blocks a minute, so dozens a click need about half a site still unbuilt when the batch reaches 32. That's why the sites are growing from 6,000 blocks to about 20,000 for the first. Bots in a party leave work a teammate could reach to that teammate: with dozens a click, bots that all headed for the nearest slot ended up on one spot, and 4 players took 0.29 of the solo time. Today's stamped sites, of 6,000 to 12,000 blocks, take 22.5 to 26.6 minutes until they're replaced. The tables in [`docs/balance.md`](docs/balance.md) predate this tree and will be rerun on the bigger sites.
+Armful adds a block a click a level, to 4, and Many Hands doubles the batch a level, to 32. A click's batch is the workable slots nearest the aimed one, anywhere on the site. A run earns about an Ember a block, and at 32 a click a bot lays about 2,100 blocks a minute, so dozens a click need about half a site still unbuilt when the batch reaches 32. That's why the sites grew from 6,000 blocks to about 20,000 for the first. Normal costs about 1%, because a big batch lays whatever the boss undid along with fresh work; Hard and Nightmare cost through the stubborn band, whose slots each need a click of their own, so they cost more on bigger sites. [`docs/balance.md`](docs/balance.md) has every table and the command behind it.
 
 `--clicks`, `--skills`, `--purse`, `--undo` and `--pay` print blocks per click, when each skill level is bought, run currency, the boss's undo rates and payout shares, by minute. `--site all --boss all` runs every site at every difficulty. [`docs/balance.md`](docs/balance.md) has every table, the command behind it, and how the boss was balanced. The sites' sizes are placeholders until the renderer's stress test sets each site's ceiling.
 
