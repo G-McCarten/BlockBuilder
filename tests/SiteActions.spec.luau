@@ -41,26 +41,24 @@ end
 
 Test.group("SiteActions")
 
-Test.case("a click places the aimed slot and the workable slots nearest it, within its reach", function()
+Test.case("a click places the aimed slot and the workable slots nearest it", function()
 	local rng = Rng.new(3)
 	local fullBatches = 0
 	for trial = 1, 40 do
 		local bp, index, site, twin = twins(trial, 1500)
 		local aimed = pickReady(bp, site, rng)
-		local stats = { grasp = 4, batch = rng:int(1, 40), chainChance = 0, chainRadius = 0, setRate = 1 }
+		local stats = { batch = rng:int(1, 40), chainChance = 0, chainRadius = 0, setRate = 1 }
 		local placed = {}
 		local count = SiteActions.hand(site, index, aimed, stats, 7, never, placed)
 
-		-- By hand: place the aimed slot, then take the nearest eligible slots to
-		-- it, out to grasp + batch / 2 of its centre, wherever the player stands.
+		-- By hand: place the aimed slot, then take the eligible slots nearest
+		-- its centre, anywhere on the site, wherever the player stands.
 		BuildSite.place(twin, aimed, Cause.HAND, 7)
 		local ax, ay, az = bp.x[aimed] + 0.5, bp.y[aimed] + 0.5, bp.z[aimed] + 0.5
-		local reach = stats.grasp + stats.batch / 2
 		local eligible = {}
 		for s = 1, bp.count do
-			local d2 = centreDist2(bp, s, ax, ay, az)
-			if BuildSite.canPlace(twin, s, Cause.BATCH) and d2 <= reach * reach then
-				table.insert(eligible, { s, d2 })
+			if BuildSite.canPlace(twin, s, Cause.BATCH) then
+				table.insert(eligible, { s, centreDist2(bp, s, ax, ay, az) })
 			end
 		end
 		table.sort(eligible, function(a, b)
@@ -79,31 +77,31 @@ Test.case("a click places the aimed slot and the workable slots nearest it, with
 		Test.equal(site.cause[aimed], Cause.HAND, "hand cause")
 		Sites.checkRules(site)
 	end
-	Test.check(fullBatches >= 10, `{fullBatches} of 40 batches filled`)
+	Test.equal(fullBatches, 40, "a part-built lodge has work for every batch")
 end)
 
-Test.case("a big batch reaches past the player's grasp, and no farther than its reach", function()
-	local bp, index, site = twins(6, 2500)
-	local rng = Rng.new(12)
-	local beyond = 0
-	for _ = 1, 30 do
-		local aimed = pickReady(bp, site, rng)
-		local stats = { grasp = 5, batch = 30, chainChance = 0, chainRadius = 0, setRate = 1 }
-		-- Where a player would stand to aim at it: just above it.
-		local px, py, pz = bp.x[aimed] + 0.5, bp.y[aimed] + 1.5, bp.z[aimed] + 0.5
-		local placed = {}
-		local count = SiteActions.hand(site, index, aimed, stats, 1, never, placed)
-		local ax, ay, az = bp.x[aimed] + 0.5, bp.y[aimed] + 0.5, bp.z[aimed] + 0.5
-		local reach = SiteActions.batchReach(stats.grasp, stats.batch)
-		for i = 2, count do
-			Test.check(centreDist2(bp, placed[i], ax, ay, az) <= reach * reach, "within the batch's reach")
-			if centreDist2(bp, placed[i], px, py, pz) > stats.grasp ^ 2 then
-				beyond += 1
-			end
-		end
+Test.case("a big batch takes the nearest workable slots wherever they lie, past the player's grasp", function()
+	-- Two rows of ground blocks, 60 cells apart, as work lies late in a big
+	-- build: in patches, such as the tops of towers, far from one another.
+	local blocks = {}
+	for x = 0, 4 do
+		table.insert(blocks, { x = x, y = 0, z = 0, kind = "a" })
+		table.insert(blocks, { x = 60 + x, y = 0, z = 0, kind = "a" })
 	end
-	Test.equal(SiteActions.batchReach(5, 30), 20, "grasp plus half the batch")
-	Test.check(beyond > 0, "some of a big batch lies past the player's grasp")
+	local bp = Blueprint.build({ name = "Apart", palette = { "a" }, blocks = blocks })
+	local index = SiteIndex.build(bp, 8)
+	local site = BuildSite.new(bp)
+	local function at(x: number): number
+		return Blueprint.slotAt(bp, x, 0, 0) :: number
+	end
+	local stats = { batch = 8, chainChance = 0, chainRadius = 0, setRate = 1 }
+	local placed = {}
+	Test.equal(SiteActions.hand(site, index, at(0), stats, 1, never, placed), 8, "a full batch")
+	-- The aimed row first, nearest first, then the nearest of the far row.
+	for i, x in { 0, 1, 2, 3, 4, 60, 61, 62 } do
+		Test.equal(placed[i], at(x), `block {i} at x {x}`)
+	end
+	Test.check(not BuildSite.isPlaced(site, at(63)), "no more than the batch")
 	Sites.checkRules(site)
 end)
 
@@ -117,7 +115,7 @@ Test.case("a click on a slot that can't be placed does nothing", function()
 		end
 	end
 	local before = site.placedCount
-	local stats = { grasp = 10, batch = 5, chainChance = 1, chainRadius = 3, setRate = 1 }
+	local stats = { batch = 5, chainChance = 1, chainRadius = 3, setRate = 1 }
 	Test.equal(SiteActions.hand(site, index, locked, stats, 1, always, {}), 0, "nothing placed")
 	Test.equal(site.placedCount, before, "site unchanged")
 end)
@@ -129,7 +127,7 @@ Test.case("batch skips stubborn slots, which only the aimed click can take", fun
 	local aimed = Blueprint.slotAt(bp, 5, 0, 5) :: number
 	BossEffects.shieldBand(site, index, 1, 0, bp.sizeX, Shield.HAND_ONLY, true)
 	local placed = {}
-	local stats = { grasp = 5, batch = 10, chainChance = 0, chainRadius = 0, setRate = 1 }
+	local stats = { batch = 10, chainChance = 0, chainRadius = 0, setRate = 1 }
 	local count = SiteActions.hand(site, index, aimed, stats, 1, never, placed)
 	Test.equal(count, 1, "only the aimed block")
 	Test.check(BuildSite.isPlaced(site, aimed), "a player's own click takes a stubborn slot")
@@ -139,7 +137,7 @@ Test.case("a chain starts every READY slot within its radius setting", function(
 	local bp, index, site = twins(5, 2000)
 	local rng = Rng.new(8)
 	local aimed = pickReady(bp, site, rng)
-	local stats = { grasp = 5, batch = 1, chainChance = 1, chainRadius = 3, setRate = 0.5 }
+	local stats = { batch = 1, chainChance = 1, chainRadius = 3, setRate = 0.5 }
 	local placed = {}
 	local before = Sites.snapshot(site)
 	local count, started = SiteActions.hand(site, index, aimed, stats, 1, always, placed)
@@ -301,7 +299,7 @@ Test.case("random actions and boss effects never break the site's rules", functi
 				return BuildSite.canPlace(site, s, Cause.HAND)
 			end, 1, out)
 			if n > 0 then
-				local stats = { grasp = 6, batch = rng:int(1, 6), chainChance = 0.3, chainRadius = 2, setRate = 1 }
+				local stats = { batch = rng:int(1, 6), chainChance = 0.3, chainRadius = 2, setRate = 1 }
 				counts.hand += SiteActions.hand(site, index, out[1], stats, 1, random, {})
 			end
 		elseif roll < 0.45 then

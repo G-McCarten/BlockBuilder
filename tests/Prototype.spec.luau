@@ -238,7 +238,7 @@ end)
 Test.case("a player buys a skill level with the number keys", function()
 	local world, player = boot()
 	-- A big batch for a while, to earn the price quickly.
-	world.workspaceProxy:SetAttribute("Batch", 12)
+	world.workspaceProxy:SetAttribute("Batch", 20)
 	hold(world)
 	for x = 2, 31 do
 		aimAt(world, player, x, 0, 6)
@@ -366,7 +366,16 @@ Test.case("with Sure Hand, a click at the sky lays the nearest block in reach", 
 	end
 	release(world)
 	world.workspaceProxy:SetAttribute("Batch", nil)
-	press(world, Enum.KeyCode.Six)
+	-- The number keys buy the nodes in SkillTuning's order.
+	local digits = { "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine" }
+	local key
+	for i, node in SkillTuning.nodes do
+		if node.id == "autoAim" then
+			key = digits[i]
+		end
+	end
+	Test.check(key ~= nil, "Sure Hand has a number key")
+	press(world, (Enum.KeyCode :: any)[key])
 	world:step(1 / 60)
 	Test.equal(realOf(world, player):GetAttribute("Level_autoAim"), 1, "bought Sure Hand")
 	local before = drawnCount(world)

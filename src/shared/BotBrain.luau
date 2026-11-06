@@ -15,8 +15,9 @@
 	    binding while the site is held at its cap, breaks a marker it can
 	    reach before the fuse ends, and shoos the boss when it works nearby,
 	    makes a stand, or holds a peace circle
-	  - otherwise heads for the nearest slot it can place and, when off
-	    cooldown, clicks the nearest one within grasp
+	  - otherwise heads for the nearest slot it can place that no teammate
+	    could lay from where they stand, and, when off cooldown, clicks the
+	    nearest one within grasp
 
 	Movement is a straight line at walking speed. A climb of more than two
 	cells rides a hoist pad, which takes hoistSeconds. All in cell space.
@@ -160,8 +161,45 @@ local function bestValue(bot: Bot, session: any, tuning: Tuning): any?
 	return best or cheapest
 end
 
-local function nearestWork(bot: Bot, index: any): number
-	for _, radius in { 6, 16, 40, 400 } do
+local SEARCH_RADII = { 6, 16, 40, 400 }
+
+-- The nearest slot the bot could place, leaving any that a teammate could
+-- lay from where they stand, within their grasp, to that teammate. Players
+-- can't stand in one another, and a party spreads out over a site rather
+-- than crowding onto one spot of work; bots that all head for the nearest
+-- slot end up on the same one once their batches clear the work around
+-- them. Only when every slot is a teammate's does it take the nearest.
+local function nearestWork(bot: Bot, session: any): number
+	local index = session.index
+	local others: { any } = {}
+	for id, worker in session.workers do
+		if id ~= bot.id then
+			table.insert(others, worker)
+		end
+	end
+	if #others > 0 then
+		local bp = session.blueprint
+		local x, y, z = bp.x, bp.y, bp.z
+		local function free(s: number): boolean
+			if not bot.placeable(s) then
+				return false
+			end
+			local cx, cy, cz = x[s] + 0.5, y[s] + 0.5, z[s] + 0.5
+			for _, other in others do
+				local grasp = other.stats.grasp
+				if (other.x - cx) ^ 2 + (other.y - cy) ^ 2 + (other.z - cz) ^ 2 <= grasp * grasp then
+					return false
+				end
+			end
+			return true
+		end
+		for _, radius in SEARCH_RADII do
+			if SiteIndex.nearest(index, bot.x, bot.y, bot.z, radius, free, 1, found) > 0 then
+				return found[1]
+			end
+		end
+	end
+	for _, radius in SEARCH_RADII do
 		if SiteIndex.nearest(index, bot.x, bot.y, bot.z, radius, bot.placeable, 1, found) > 0 then
 			return found[1]
 		end
@@ -288,7 +326,7 @@ function BotBrain.step(bot: Bot, session: any, tuning: Tuning, dt: number, tool:
 		moveToward(bot, session, tuning, dt, gx, gy :: number, gz :: number)
 	else
 		if bot.target == 0 or not bot.placeable(bot.target) then
-			bot.target = nearestWork(bot, session.index)
+			bot.target = nearestWork(bot, session)
 		end
 		local t = bot.target
 		if t ~= 0 then
