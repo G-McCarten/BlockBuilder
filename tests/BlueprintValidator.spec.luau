@@ -80,10 +80,10 @@ Test.case("caps a site at 65,535 slots", function()
 	Test.check(full.ok, table.concat(full.errors, "\n"))
 end)
 
-Test.case("accepts the first site, the WoodcuttersLodge, at about 6,000 blocks", function()
+Test.case("accepts the first site, the WoodcuttersLodge, at about 20,000 blocks", function()
 	local report = BlueprintValidator.validate(Sites.lodge())
 	Test.check(report.ok, table.concat(report.errors, "\n"))
-	Test.check(math.abs(report.stats.count - 6000) <= 600, `within 10% of 6,000, got {report.stats.count}`)
+	Test.check(math.abs(report.stats.count - 20000) <= 1000, `within 5% of 20,000, got {report.stats.count}`)
 end)
 
 Test.case("reach is per layer: a thick floor's lower layer is laid from on top of it", function()
